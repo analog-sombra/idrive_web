@@ -1,15 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Card,
-  Table,
-  Input,
-  Button,
-  Tag,
-  Space,
-  Select,
-} from "antd";
+import { Card, Table, Input, Button, Tag, Space, Select } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import {
   AntDesignEyeOutlined,
@@ -336,9 +328,7 @@ const CarManagementPage = () => {
       render: (_, record) =>
         record.driverName ? (
           <div>
-            <div className="font-medium text-gray-900">
-              {record.driverName}
-            </div>
+            <div className="font-medium text-gray-900">{record.driverName}</div>
             <div className="text-xs text-gray-500">{record.driverId}</div>
           </div>
         ) : (
@@ -453,7 +443,7 @@ const CarManagementPage = () => {
       <div className="px-8 py-6 space-y-6">
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card bordered={false} className="shadow-sm">
+          <Card className="shadow-sm">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
                 <span className="text-blue-600 text-2xl">🚗</span>
@@ -467,7 +457,7 @@ const CarManagementPage = () => {
             </div>
           </Card>
 
-          <Card bordered={false} className="shadow-sm">
+          <Card className="shadow-sm">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-lg bg-green-50 flex items-center justify-center flex-shrink-0">
                 <span className="text-green-600 text-2xl">✓</span>
@@ -481,7 +471,7 @@ const CarManagementPage = () => {
             </div>
           </Card>
 
-          <Card bordered={false} className="shadow-sm">
+          <Card className="shadow-sm">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
                 <span className="text-blue-600 text-2xl">🔄</span>
@@ -495,7 +485,7 @@ const CarManagementPage = () => {
             </div>
           </Card>
 
-          <Card bordered={false} className="shadow-sm">
+          <Card className="shadow-sm">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-lg bg-orange-50 flex items-center justify-center flex-shrink-0">
                 <span className="text-orange-600 text-2xl">🔧</span>
@@ -511,7 +501,7 @@ const CarManagementPage = () => {
         </div>
 
         {/* Filters and Search */}
-        <Card bordered={false} className="shadow-sm">
+        <Card className="shadow-sm">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div className="flex-1 max-w-md">
               <Search
@@ -562,9 +552,9 @@ const CarManagementPage = () => {
             </Space>
           </div>
         </Card>
-
+        <div></div>
         {/* Cars Table */}
-        <Card bordered={false} className="shadow-sm">
+        <Card className="shadow-sm">
           <Table
             columns={columns}
             dataSource={filteredCars}

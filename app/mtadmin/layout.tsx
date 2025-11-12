@@ -49,6 +49,11 @@ const menuItems: MenuItem[] = [
     label: "Users",
   },
   {
+    key: "/mtadmin/driver",
+    icon: <span className="text-lg">🚘</span>,
+    label: "Drivers",
+  },
+  {
     key: "/mtadmin/course",
     icon: <span className="text-lg">📚</span>,
     label: "Courses",

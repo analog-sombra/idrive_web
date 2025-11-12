@@ -203,7 +203,11 @@ const Dashboard = () => {
         };
         const { color, icon, text } = config[status];
         return (
-          <Tag color={color} icon={icon}>
+          <Tag
+            color={color}
+            icon={icon}
+            className="!text-sm !px-3 !py-1 !flex !items-center !gap-1"
+          >
             {text}
           </Tag>
         );
@@ -255,7 +259,7 @@ const Dashboard = () => {
         <Row gutter={[20, 20]}>
           <Col xs={24} sm={12} lg={6}>
             <Card
-              bordered={false}
+              
               className="shadow-sm hover:shadow-md transition-all"
             >
               <Statistic
@@ -278,7 +282,7 @@ const Dashboard = () => {
           </Col>
           <Col xs={24} sm={12} lg={6}>
             <Card
-              bordered={false}
+              
               className="shadow-sm hover:shadow-md transition-all"
             >
               <Statistic
@@ -301,7 +305,7 @@ const Dashboard = () => {
           </Col>
           <Col xs={24} sm={12} lg={6}>
             <Card
-              bordered={false}
+              
               className="shadow-sm hover:shadow-md transition-all"
             >
               <Statistic
@@ -322,7 +326,7 @@ const Dashboard = () => {
           </Col>
           <Col xs={24} sm={12} lg={6}>
             <Card
-              bordered={false}
+              
               className="shadow-sm hover:shadow-md transition-all"
             >
               <Statistic
@@ -353,7 +357,7 @@ const Dashboard = () => {
               <span className="font-semibold">Alerts & Notifications</span>
             </div>
           }
-          bordered={false}
+          
           className="shadow-sm"
         >
           <div className="space-y-3">
@@ -393,7 +397,7 @@ const Dashboard = () => {
               </Button>
             </div>
           }
-          bordered={false}
+          
           className="shadow-sm"
         >
           <Table
@@ -409,7 +413,7 @@ const Dashboard = () => {
         {/* Quick Actions */}
         <Card
           title={<span className="font-semibold">Quick Actions</span>}
-          bordered={false}
+          
           className="shadow-sm"
         >
           <Row gutter={[20, 20]}>

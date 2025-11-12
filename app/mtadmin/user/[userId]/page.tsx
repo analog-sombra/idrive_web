@@ -373,7 +373,7 @@ const UserDetailPage = ({ params }: { params: { userId: string } }) => {
       <div className="px-8 py-6 space-y-6">
         {/* Overview Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card bordered={false} className="shadow-sm">
+          <Card  className="shadow-sm">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-lg bg-green-50 flex items-center justify-center flex-shrink-0">
                 <RiMoneyRupeeCircleLine className="text-green-600 text-2xl" />
@@ -387,7 +387,7 @@ const UserDetailPage = ({ params }: { params: { userId: string } }) => {
             </div>
           </Card>
 
-          <Card bordered={false} className="shadow-sm">
+          <Card  className="shadow-sm">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
                 <IcBaselineCalendarMonth className="text-blue-600 text-2xl" />
@@ -401,7 +401,7 @@ const UserDetailPage = ({ params }: { params: { userId: string } }) => {
             </div>
           </Card>
 
-          <Card bordered={false} className="shadow-sm">
+          <Card  className="shadow-sm">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
                 <RiMoneyRupeeCircleLine className="text-purple-600 text-2xl" />
@@ -415,7 +415,7 @@ const UserDetailPage = ({ params }: { params: { userId: string } }) => {
             </div>
           </Card>
 
-          <Card bordered={false} className="shadow-sm">
+          <Card  className="shadow-sm">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-lg bg-orange-50 flex items-center justify-center flex-shrink-0">
                 <AntDesignCheckOutlined className="text-orange-600 text-2xl" />
@@ -434,7 +434,7 @@ const UserDetailPage = ({ params }: { params: { userId: string } }) => {
         {/* User Details */}
         <Card
           title={<span className="text-lg font-semibold">User Details</span>}
-          bordered={false}
+          
           className="shadow-sm"
         >
           <Descriptions column={{ xs: 1, sm: 2, md: 3 }}>
@@ -483,7 +483,7 @@ const UserDetailPage = ({ params }: { params: { userId: string } }) => {
               </Button>
             </div>
           }
-          bordered={false}
+          
           className="shadow-sm"
         >
           <Table
@@ -502,7 +502,7 @@ const UserDetailPage = ({ params }: { params: { userId: string } }) => {
               Active Services ({activeServices.length})
             </span>
           }
-          bordered={false}
+          
           className="shadow-sm"
         >
           <Table
@@ -520,7 +520,7 @@ const UserDetailPage = ({ params }: { params: { userId: string } }) => {
               Previous Services ({previousServices.length})
             </span>
           }
-          bordered={false}
+          
           className="shadow-sm"
         >
           <Table

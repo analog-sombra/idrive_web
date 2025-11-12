@@ -396,7 +396,7 @@ const CarDetailPage = ({ params }: { params: { carId: string } }) => {
 
       <div className="px-8 py-6 space-y-6">
         {/* Basic Details */}
-        <Card title="Car Details" bordered={false} className="shadow-sm">
+        <Card title="Car Details"  className="shadow-sm">
           <Descriptions bordered column={{ xs: 1, sm: 2, md: 3 }}>
             <Descriptions.Item label="Car Name">
               {carData.carName}
@@ -447,7 +447,7 @@ const CarDetailPage = ({ params }: { params: { carId: string } }) => {
         </Card>
 
         {/* Driver Details */}
-        <Card title="Assigned Driver" bordered={false} className="shadow-sm">
+        <Card title="Assigned Driver"  className="shadow-sm">
           {carData.driverName ? (
             <Descriptions bordered column={{ xs: 1, sm: 2, md: 3 }}>
               <Descriptions.Item label="Driver Name">
@@ -481,7 +481,7 @@ const CarDetailPage = ({ params }: { params: { carId: string } }) => {
         {/* Documents & Compliance */}
         <Card
           title="Documents & Compliance"
-          bordered={false}
+          
           className="shadow-sm"
         >
           <Descriptions bordered column={{ xs: 1, sm: 2, md: 2 }}>
@@ -527,7 +527,7 @@ const CarDetailPage = ({ params }: { params: { carId: string } }) => {
         {/* Maintenance History */}
         <Card
           title="Maintenance History"
-          bordered={false}
+          
           className="shadow-sm"
           extra={
             <Button
@@ -549,7 +549,7 @@ const CarDetailPage = ({ params }: { params: { carId: string } }) => {
         {/* Booking History */}
         <Card
           title="Booking History"
-          bordered={false}
+          
           className="shadow-sm"
           extra={
             <span className="text-sm text-gray-600">

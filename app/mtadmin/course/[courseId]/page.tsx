@@ -498,7 +498,7 @@ const CourseDetailPage = ({ params }: { params: { courseId: string } }) => {
         {/* Statistics Cards */}
         <Row gutter={16}>
           <Col xs={24} sm={12} lg={6}>
-            <Card bordered={false} className="shadow-sm">
+            <Card  className="shadow-sm">
               <Statistic
                 title="Total Revenue"
                 value={courseData.totalRevenue}
@@ -508,7 +508,7 @@ const CourseDetailPage = ({ params }: { params: { courseId: string } }) => {
             </Card>
           </Col>
           <Col xs={24} sm={12} lg={6}>
-            <Card bordered={false} className="shadow-sm">
+            <Card  className="shadow-sm">
               <Statistic
                 title="Enrolled Students"
                 value={courseData.enrolledStudents}
@@ -523,7 +523,7 @@ const CourseDetailPage = ({ params }: { params: { courseId: string } }) => {
             </Card>
           </Col>
           <Col xs={24} sm={12} lg={6}>
-            <Card bordered={false} className="shadow-sm">
+            <Card  className="shadow-sm">
               <Statistic
                 title="Course Progress"
                 value={courseData.sessionsCompleted}
@@ -538,7 +538,7 @@ const CourseDetailPage = ({ params }: { params: { courseId: string } }) => {
             </Card>
           </Col>
           <Col xs={24} sm={12} lg={6}>
-            <Card bordered={false} className="shadow-sm">
+            <Card  className="shadow-sm">
               <Statistic
                 title="Course Price"
                 value={courseData.price}
@@ -550,7 +550,7 @@ const CourseDetailPage = ({ params }: { params: { courseId: string } }) => {
         </Row>
 
         {/* Basic Details */}
-        <Card title="Course Details" bordered={false} className="shadow-sm">
+        <Card title="Course Details"  className="shadow-sm">
           <Descriptions bordered column={{ xs: 1, sm: 2, md: 3 }}>
             <Descriptions.Item label="Course Name">
               {courseData.courseName}
@@ -613,7 +613,7 @@ const CourseDetailPage = ({ params }: { params: { courseId: string } }) => {
         </Card>
 
         {/* Syllabus */}
-        <Card title="Course Syllabus" bordered={false} className="shadow-sm">
+        <Card title="Course Syllabus"  className="shadow-sm">
           <ul className="space-y-2">
             {courseData.syllabus.map((item, index) => (
               <li key={index} className="flex items-start gap-3">
@@ -629,7 +629,7 @@ const CourseDetailPage = ({ params }: { params: { courseId: string } }) => {
         {/* Session History */}
         <Card
           title="Session History"
-          bordered={false}
+          
           className="shadow-sm"
           extra={
             <Button
@@ -651,7 +651,7 @@ const CourseDetailPage = ({ params }: { params: { courseId: string } }) => {
         {/* Enrolled Students */}
         <Card
           title="Enrolled Students"
-          bordered={false}
+          
           className="shadow-sm"
           extra={
             <span className="text-sm text-gray-600">

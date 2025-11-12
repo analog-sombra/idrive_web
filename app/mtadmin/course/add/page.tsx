@@ -69,7 +69,7 @@ const AddCoursePage = () => {
       </div>
 
       <div className="px-8 py-6 max-w-5xl">
-        <Card bordered={false} className="shadow-sm">
+        <Card  className="shadow-sm">
           <Form
             form={form}
             layout="vertical"

@@ -22,36 +22,6 @@ const AdminLoginPage = () => {
     role: string;
   };
 
-  type UserCompanyResponse = {
-    user_id: number;
-    company_id: number;
-  };
-
-  const searchUserCompany = async (userId: string) => {
-    const response = await ApiCall({
-      query:
-        "query SearchUserCompany($whereSearchInput: WhereUserCompanySearchInput!) { searchUserCompany(whereSearchInput: $whereSearchInput) { user_id, company_id }}",
-      variables: {
-        whereSearchInput: {
-          user_id: parseInt(userId),
-        },
-      },
-    });
-
-    if (!response.status) {
-      return null;
-    }
-
-    // if value is not in response.data then return null
-    if (!(response.data as Record<string, unknown>)["searchUserCompany"]) {
-      return null;
-    }
-    
-    return (response.data as Record<string, unknown>)[
-      "searchUserCompany"
-    ] as UserCompanyResponse;
-  };
-
   const adminLogin = useMutation({
     mutationKey: ["login"],
     mutationFn: async (data: AdminLoginForm) => {
@@ -82,17 +52,7 @@ const AdminLoginPage = () => {
     onSuccess: async (data) => {
       setCookie("role", data.role);
       setCookie("id", data.id);
-      
-      // Search for user company after successful login
-      try {
-        const userCompany = await searchUserCompany(data.id);
-        if (userCompany && userCompany.company_id) {
-          setCookie("company", userCompany.company_id.toString());
-        }
-      } catch (error) {
-        // Silently handle the error - don't prevent login if company search fails
-      }
-      
+
       router.push("/admin");
     },
     onError: (error: Error) => {

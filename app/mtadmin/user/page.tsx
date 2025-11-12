@@ -345,7 +345,7 @@ const UserManagementPage = () => {
       <div className="px-8 py-6 space-y-6">
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card bordered={false} className="shadow-sm">
+          <Card  className="shadow-sm">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
                 <MaterialSymbolsPersonRounded className="text-blue-600 text-2xl" />
@@ -359,7 +359,7 @@ const UserManagementPage = () => {
             </div>
           </Card>
 
-          <Card bordered={false} className="shadow-sm">
+          <Card  className="shadow-sm">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-lg bg-green-50 flex items-center justify-center flex-shrink-0">
                 <MaterialSymbolsPersonRounded className="text-green-600 text-2xl" />
@@ -373,7 +373,7 @@ const UserManagementPage = () => {
             </div>
           </Card>
 
-          <Card bordered={false} className="shadow-sm">
+          <Card  className="shadow-sm">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
                 <MaterialSymbolsPersonRounded className="text-red-600 text-2xl" />
@@ -387,7 +387,7 @@ const UserManagementPage = () => {
             </div>
           </Card>
 
-          <Card bordered={false} className="shadow-sm">
+          <Card  className="shadow-sm">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
                 <RiMoneyRupeeCircleLine className="text-purple-600 text-2xl" />
@@ -404,7 +404,7 @@ const UserManagementPage = () => {
         <div></div>
 
         {/* Filters and Search */}
-        <Card bordered={false} className="shadow-sm">
+        <Card  className="shadow-sm">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div className="flex-1 max-w-md">
               <Search
@@ -440,7 +440,7 @@ const UserManagementPage = () => {
         <div></div>
 
         {/* Users Table */}
-        <Card bordered={false} className="shadow-sm">
+        <Card  className="shadow-sm">
           <Table
             columns={columns}
             dataSource={filteredUsers}
