@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Layout, Menu, Button, Avatar, Dropdown } from "antd";
+import { Layout, Menu, Button, Avatar, Dropdown, Tooltip } from "antd";
 import type { MenuProps } from "antd";
 import {
   FluentMdl2ViewDashboard,
@@ -16,62 +16,77 @@ import {
   MaterialSymbolsKeyboardDoubleArrowRight,
   IcBaselineAccountCircle,
 } from "@/components/icons";
-import { deleteCookie } from "cookies-next";
+import { deleteCookie, getCookie } from "cookies-next";
+import { getSchoolById } from "@/services/school.api";
 
 const { Sider, Content } = Layout;
 
-type MenuItem = Required<MenuProps>["items"][number];
-
-const menuItems: MenuItem[] = [
+const baseMenuItems = [
   {
     key: "/mtadmin/dashboard",
     icon: <FluentMdl2ViewDashboard className="text-lg" />,
     label: "Dashboard",
+    requiresProfile: false,
   },
   {
     key: "/mtadmin/scheduler",
     icon: <IcBaselineCalendarMonth className="text-lg" />,
     label: "Scheduler",
+    requiresProfile: true,
   },
   {
     key: "/mtadmin/booking",
     icon: <AntDesignPlusCircleOutlined className="text-lg" />,
     label: "New Booking",
+    requiresProfile: true,
   },
   {
     key: "/mtadmin/amendment",
     icon: <AntDesignEditOutlined className="text-lg" />,
     label: "Amendments",
+    requiresProfile: true,
   },
   {
     key: "/mtadmin/user",
     icon: <MaterialSymbolsPersonRounded className="text-lg" />,
     label: "Users",
+    requiresProfile: true,
   },
   {
     key: "/mtadmin/driver",
     icon: <span className="text-lg">🚘</span>,
     label: "Drivers",
+    requiresProfile: true,
   },
   {
     key: "/mtadmin/course",
     icon: <span className="text-lg">📚</span>,
     label: "Courses",
+    requiresProfile: true,
   },
   {
     key: "/mtadmin/car",
     icon: <span className="text-lg">🚗</span>,
     label: "Cars",
+    requiresProfile: true,
   },
   {
     key: "/mtadmin/holiday",
     icon: <Fa6RegularCalendarXmark className="text-lg" />,
     label: "Holidays",
+    requiresProfile: true,
+  },
+  {
+    key: "/mtadmin/service",
+    icon: <span className="text-lg">🎫</span>,
+    label: "Services & Add-ons",
+    requiresProfile: true,
   },
   {
     key: "/mtadmin/profile",
     icon: <span className="text-lg">🏫</span>,
     label: "School Profile",
+    requiresProfile: false,
   },
 ];
 
@@ -81,8 +96,64 @@ export default function MtAdminLayout({
   children: React.ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [profileComplete, setProfileComplete] = useState(true);
   const pathname = usePathname();
   const router = useRouter();
+
+  const schoolId: number = parseInt(getCookie("school")?.toString() || "0");
+
+  // Check profile completion on mount
+  useEffect(() => {
+
+    const checkProfileCompletion = async () => {
+      try {
+        const response = await getSchoolById(schoolId);
+
+        if (response.status && response.data.getSchoolById) {
+          const school = response.data.getSchoolById;
+
+          // Check required fields for profile completion
+          const requiredFields = [
+            "dayStartTime",
+            "dayEndTime",
+            "ownerName",
+            "bankName",
+            "accountNumber",
+            "ifscCode",
+            "rtoLicenseNumber",
+          ];
+
+          const isComplete = requiredFields.every(
+            (field) => school[field as keyof typeof school]
+          );
+          setProfileComplete(isComplete);
+        }
+      } catch (error) {
+        console.error("Error checking profile completion:", error);
+      }
+    };
+
+    checkProfileCompletion();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Create menu items with disabled state
+  const menuItems = baseMenuItems.map((item) => ({
+    key: item.key,
+    icon: item.icon,
+    label:
+      item.requiresProfile && !profileComplete ? (
+        <Tooltip
+          title="Complete your school profile to access this feature"
+          placement="right"
+        >
+          <span>{item.label}</span>
+        </Tooltip>
+      ) : (
+        item.label
+      ),
+    disabled: item.requiresProfile && !profileComplete,
+  }));
 
   const handleMenuClick: MenuProps["onClick"] = (e) => {
     router.push(e.key);

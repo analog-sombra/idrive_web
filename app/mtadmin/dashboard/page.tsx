@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Card, Row, Col, Statistic, Table, Tag, Button, Alert } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import {
@@ -16,6 +17,8 @@ import {
   Fa6RegularPenToSquare,
 } from "@/components/icons";
 import { useRouter } from "next/navigation";
+import { getSchoolById } from "@/services/school.api";
+import { getCookie } from "cookies-next";
 
 interface BookingData {
   key: string;
@@ -39,6 +42,61 @@ interface AlertData {
 
 const Dashboard = () => {
   const router = useRouter();
+  const [profileIncomplete, setProfileIncomplete] = useState(false);
+  const [missingFields, setMissingFields] = useState<string[]>([]);
+  const [checkingProfile, setCheckingProfile] = useState(true);
+
+  const schoolId: number = parseInt(getCookie("school")?.toString() || "0");
+
+  // Check profile completion on mount
+  useEffect(() => {
+    const checkProfileCompletion = async () => {
+      setCheckingProfile(true);
+      try {
+        if (!schoolId || schoolId === 0) {
+          setCheckingProfile(false);
+          return;
+        }
+
+        const response = await getSchoolById(schoolId);
+
+        if (response.status && response.data.getSchoolById) {
+          const school = response.data.getSchoolById;
+
+          // Check required fields for profile completion
+          const requiredFields: Array<{
+            key: keyof typeof school;
+            label: string;
+          }> = [
+            { key: "dayStartTime", label: "Day Start Time" },
+            { key: "dayEndTime", label: "Day End Time" },
+            { key: "ownerName", label: "Owner Name" },
+            { key: "bankName", label: "Bank Name" },
+            { key: "accountNumber", label: "Account Number" },
+            { key: "ifscCode", label: "IFSC Code" },
+            { key: "rtoLicenseNumber", label: "RTO License Number" },
+          ];
+
+          const missing = requiredFields.filter((field) => !school[field.key]);
+
+          if (missing.length > 0) {
+            setProfileIncomplete(true);
+            setMissingFields(missing.map((f) => f.label));
+          } else {
+            setProfileIncomplete(false);
+            setMissingFields([]);
+          }
+        }
+      } catch (error) {
+        console.error("Error checking profile completion:", error);
+      } finally {
+        setCheckingProfile(false);
+      }
+    };
+
+    checkProfileCompletion();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Mock data for statistics
   const stats = {
@@ -255,13 +313,47 @@ const Dashboard = () => {
       </div>
 
       <div className="px-8 pb-8 space-y-6">
+        {/* Profile Completion Alert */}
+        {!checkingProfile && profileIncomplete && (
+          <Alert
+            message="Complete Your School Profile"
+            description={
+              <div>
+                <p className="mb-2">
+                  Your school profile is incomplete. Please complete the
+                  following required information to access all features:
+                </p>
+                <ul className="list-disc list-inside space-y-1">
+                  {missingFields.map((field, index) => (
+                    <li key={index} className="text-sm">
+                      {field}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            }
+            type="warning"
+            showIcon
+            action={
+              <Button
+                size="small"
+                type="primary"
+                onClick={() => router.push("/mtadmin/profile/edit")}
+                className="!bg-orange-500 !border-orange-500"
+              >
+                Complete Profile
+              </Button>
+            }
+            closable={false}
+            className="mb-6"
+          />
+        )}
+        <div></div>
+
         {/* Statistics Cards */}
         <Row gutter={[20, 20]}>
           <Col xs={24} sm={12} lg={6}>
-            <Card
-              
-              className="shadow-sm hover:shadow-md transition-all"
-            >
+            <Card className="shadow-sm hover:shadow-md transition-all">
               <Statistic
                 title={
                   <span className="text-gray-600 text-sm">
@@ -281,10 +373,7 @@ const Dashboard = () => {
             </Card>
           </Col>
           <Col xs={24} sm={12} lg={6}>
-            <Card
-              
-              className="shadow-sm hover:shadow-md transition-all"
-            >
+            <Card className="shadow-sm hover:shadow-md transition-all">
               <Statistic
                 title={
                   <span className="text-gray-600 text-sm">
@@ -304,10 +393,7 @@ const Dashboard = () => {
             </Card>
           </Col>
           <Col xs={24} sm={12} lg={6}>
-            <Card
-              
-              className="shadow-sm hover:shadow-md transition-all"
-            >
+            <Card className="shadow-sm hover:shadow-md transition-all">
               <Statistic
                 title={
                   <span className="text-gray-600 text-sm">Total Revenue</span>
@@ -325,10 +411,7 @@ const Dashboard = () => {
             </Card>
           </Col>
           <Col xs={24} sm={12} lg={6}>
-            <Card
-              
-              className="shadow-sm hover:shadow-md transition-all"
-            >
+            <Card className="shadow-sm hover:shadow-md transition-all">
               <Statistic
                 title={
                   <span className="text-gray-600 text-sm">
@@ -357,7 +440,6 @@ const Dashboard = () => {
               <span className="font-semibold">Alerts & Notifications</span>
             </div>
           }
-          
           className="shadow-sm"
         >
           <div className="space-y-3">
@@ -397,7 +479,6 @@ const Dashboard = () => {
               </Button>
             </div>
           }
-          
           className="shadow-sm"
         >
           <Table
@@ -413,7 +494,6 @@ const Dashboard = () => {
         {/* Quick Actions */}
         <Card
           title={<span className="font-semibold">Quick Actions</span>}
-          
           className="shadow-sm"
         >
           <Row gutter={[20, 20]}>

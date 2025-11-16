@@ -20,6 +20,7 @@ const AdminLoginPage = () => {
     id: string;
     name: string;
     role: string;
+    schoolId?: number;
   };
 
   const adminLogin = useMutation({
@@ -27,7 +28,7 @@ const AdminLoginPage = () => {
     mutationFn: async (data: AdminLoginForm) => {
       const response = await ApiCall({
         query:
-          "query Login($loginUserInput: LoginUserInput!) { login(loginUserInput: $loginUserInput) { id, name, role }}",
+          "query Login($loginUserInput: LoginUserInput!) { login(loginUserInput: $loginUserInput) { id, name, role, schoolId }}",
         variables: {
           loginUserInput: {
             contact: data.mobile,
@@ -52,6 +53,10 @@ const AdminLoginPage = () => {
     onSuccess: async (data) => {
       setCookie("role", data.role);
       setCookie("id", data.id);
+
+      if (data.role == "MT_ADMIN") {
+        setCookie("school", data.schoolId?.toString() || "");
+      }
 
       router.push("/admin");
     },

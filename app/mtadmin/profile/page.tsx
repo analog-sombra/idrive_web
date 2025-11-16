@@ -1,63 +1,105 @@
 "use client";
 
-import { Card, Button, Descriptions, Tag, Avatar } from "antd";
+import { useEffect, useState } from "react";
+import { Card, Button, Tag, Avatar, Descriptions, Spin, Alert } from "antd";
 import {
   AntDesignEditOutlined,
   IcBaselineRefresh,
 } from "@/components/icons";
 import { useRouter } from "next/navigation";
+import { getSchoolById, School } from "@/services/school.api";
+import { getCookie } from "cookies-next";
 
 const SchoolProfilePage = () => {
   const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [schoolData, setSchoolData] = useState<School | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  // Mock school data
-  const schoolData = {
-    name: "iDrive Driving School",
-    email: "contact@idrive.com",
-    phone: "+91 9876543210",
-    alternatePhone: "+91 9876543211",
-    address: "Plot No. 123, Sector 15, Rohini, New Delhi - 110085, India",
-    registrationNumber: "DL/DS/2022/12345",
-    gstNumber: "07AABCI1234F1Z5",
-    establishedYear: "2022",
-    website: "https://www.idrive.com",
-    
-    // Operating Hours
-    dayStartTime: "08:00 AM",
-    dayEndTime: "08:00 PM",
-    lunchStartTime: "01:00 PM",
-    lunchEndTime: "02:00 PM",
-    weeklyHoliday: "Sunday",
-    
-    // Additional Details
-    totalInstructors: 12,
-    totalVehicles: 15,
-    totalStudents: 245,
-    coursesOffered: 8,
-    
-    // Contact Person
-    ownerName: "Mr. Rajesh Kumar",
-    ownerPhone: "+91 9876543200",
-    ownerEmail: "rajesh.kumar@idrive.com",
-    
-    // Bank Details
-    bankName: "HDFC Bank",
-    accountNumber: "50200012345678",
-    ifscCode: "HDFC0001234",
-    branchName: "Rohini Sector 15",
-    
-    // Social Media
-    facebook: "https://facebook.com/idriveschool",
-    instagram: "https://instagram.com/idriveschool",
-    twitter: "https://twitter.com/idriveschool",
-    
-    // License & Certifications
-    rtoLicenseNumber: "DL-RTO-2022-456",
-    rtoLicenseExpiry: "2027-12-31",
-    insuranceProvider: "ICICI Lombard",
-    insurancePolicyNumber: "POL/2024/123456",
-    insuranceExpiry: "2025-12-31",
+  const schoolId: number = parseInt(getCookie("school")?.toString() || "0");
+
+  const fetchSchoolData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      if (!schoolId || schoolId === 0) {
+        setError("School information not found. Please contact administrator.");
+        return;
+      }
+
+      const response = await getSchoolById(schoolId);
+      
+      if (response.status && response.data.getSchoolById) {
+        setSchoolData(response.data.getSchoolById);
+      } else {
+        setError(response.message || "Failed to load school profile");
+      }
+    } catch (error) {
+      console.error("Error fetching school:", error);
+      setError("Failed to load school profile. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
+
+  useEffect(() => {
+    fetchSchoolData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Spin size="large" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-8">
+        <Alert
+          message="Error"
+          description={error}
+          type="error"
+          showIcon
+          action={
+            <Button onClick={fetchSchoolData}>
+              Retry
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
+
+  if (!schoolData) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Profile Not Found</h2>
+          <p className="text-gray-600 mb-4">Please complete your school profile to continue.</p>
+          <Button
+            type="primary"
+            onClick={() => router.push("/mtadmin/profile/edit")}
+          >
+            Complete Profile
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const getStatusConfig = (status: string) => {
+    const configs = {
+      ACTIVE: { color: "green", text: "Active" },
+      INACTIVE: { color: "red", text: "Inactive" },
+      SUSPENDED: { color: "orange", text: "Suspended" },
+    };
+    return configs[status as keyof typeof configs] || configs.ACTIVE;
+  };
+
+  const statusConfig = getStatusConfig(schoolData.status);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -114,59 +156,22 @@ const SchoolProfilePage = () => {
                 {schoolData.address}
               </p>
               <div className="flex items-center gap-4 mt-3">
-                <Tag color="green" className="!text-sm !px-3 !py-1">
-                  ✓ Verified
+                <Tag
+                  color={statusConfig.color}
+                  className="!text-sm !px-3 !py-1"
+                >
+                  {statusConfig.text}
                 </Tag>
                 <Tag color="blue" className="!text-sm !px-3 !py-1">
                   Est. {schoolData.establishedYear}
                 </Tag>
-                <Tag color="purple" className="!text-sm !px-3 !py-1">
-                  RTO Licensed
-                </Tag>
+                <span className="text-sm text-gray-600">
+                  ID: SCH-{String(schoolData.id).padStart(3, "0")}
+                </span>
               </div>
             </div>
           </div>
         </Card>
-        <div></div>
-
-        {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card className="shadow-sm">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-blue-600">
-                {schoolData.totalInstructors}
-              </div>
-              <div className="text-gray-600 mt-2">Total Instructors</div>
-            </div>
-          </Card>
-
-          <Card className="shadow-sm">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-green-600">
-                {schoolData.totalVehicles}
-              </div>
-              <div className="text-gray-600 mt-2">Total Vehicles</div>
-            </div>
-          </Card>
-
-          <Card className="shadow-sm">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-purple-600">
-                {schoolData.totalStudents}
-              </div>
-              <div className="text-gray-600 mt-2">Active Students</div>
-            </div>
-          </Card>
-
-          <Card className="shadow-sm">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-orange-600">
-                {schoolData.coursesOffered}
-              </div>
-              <div className="text-gray-600 mt-2">Courses Offered</div>
-            </div>
-          </Card>
-        </div>
         <div></div>
 
         {/* Basic Information */}
@@ -233,34 +238,49 @@ const SchoolProfilePage = () => {
         >
           <Descriptions column={{ xs: 1, sm: 2, md: 3 }} bordered>
             <Descriptions.Item label="Day Start Time">
-              <Tag color="green" className="!text-base !px-4 !py-1">
-                🕐 {schoolData.dayStartTime}
-              </Tag>
+              {schoolData.dayStartTime ? (
+                <Tag color="green" className="!text-base !px-4 !py-1">
+                  🕐 {schoolData.dayStartTime}
+                </Tag>
+              ) : (
+                <span className="text-gray-400 italic">Not set</span>
+              )}
             </Descriptions.Item>
             <Descriptions.Item label="Day End Time">
-              <Tag color="red" className="!text-base !px-4 !py-1">
-                🕐 {schoolData.dayEndTime}
-              </Tag>
+              {schoolData.dayEndTime ? (
+                <Tag color="red" className="!text-base !px-4 !py-1">
+                  🕐 {schoolData.dayEndTime}
+                </Tag>
+              ) : (
+                <span className="text-gray-400 italic">Not set</span>
+              )}
             </Descriptions.Item>
             <Descriptions.Item label="Weekly Holiday">
-              <Tag color="purple" className="!text-base !px-4 !py-1">
-                📅 {schoolData.weeklyHoliday}
-              </Tag>
+              {schoolData.weeklyHoliday ? (
+                <Tag color="purple" className="!text-base !px-4 !py-1">
+                  📅 {schoolData.weeklyHoliday}
+                </Tag>
+              ) : (
+                <span className="text-gray-400 italic">Not set</span>
+              )}
             </Descriptions.Item>
             <Descriptions.Item label="Lunch Start Time">
-              <Tag color="orange" className="!text-base !px-4 !py-1">
-                🍽️ {schoolData.lunchStartTime}
-              </Tag>
+              {schoolData.lunchStartTime ? (
+                <Tag color="orange" className="!text-base !px-4 !py-1">
+                  🍽️ {schoolData.lunchStartTime}
+                </Tag>
+              ) : (
+                <span className="text-gray-400 italic">Not set</span>
+              )}
             </Descriptions.Item>
             <Descriptions.Item label="Lunch End Time">
-              <Tag color="orange" className="!text-base !px-4 !py-1">
-                🍽️ {schoolData.lunchEndTime}
-              </Tag>
-            </Descriptions.Item>
-            <Descriptions.Item label="Lunch Duration">
-              <Tag color="blue" className="!text-base !px-4 !py-1">
-                ⏱️ 1 Hour
-              </Tag>
+              {schoolData.lunchEndTime ? (
+                <Tag color="orange" className="!text-base !px-4 !py-1">
+                  🍽️ {schoolData.lunchEndTime}
+                </Tag>
+              ) : (
+                <span className="text-gray-400 italic">Not set</span>
+              )}
             </Descriptions.Item>
           </Descriptions>
         </Card>
@@ -332,20 +352,35 @@ const SchoolProfilePage = () => {
               <span className="font-mono">{schoolData.rtoLicenseNumber}</span>
             </Descriptions.Item>
             <Descriptions.Item label="RTO License Expiry">
-              <Tag color="green" className="!text-sm !px-3 !py-1">
-                Valid till {new Date(schoolData.rtoLicenseExpiry).toLocaleDateString("en-IN")}
-              </Tag>
+              {schoolData.rtoLicenseExpiry ? (
+                <Tag color="green" className="!text-sm !px-3 !py-1">
+                  Valid till{" "}
+                  {new Date(schoolData.rtoLicenseExpiry).toLocaleDateString("en-IN")}
+                </Tag>
+              ) : (
+                <span className="text-gray-400 italic">N/A</span>
+              )}
             </Descriptions.Item>
             <Descriptions.Item label="Insurance Provider">
-              {schoolData.insuranceProvider}
+              {schoolData.insuranceProvider || <span className="text-gray-400 italic">N/A</span>}
             </Descriptions.Item>
             <Descriptions.Item label="Insurance Policy Number">
-              <span className="font-mono">{schoolData.insurancePolicyNumber}</span>
+              {schoolData.insurancePolicyNumber ? (
+                <span className="font-mono">
+                  {schoolData.insurancePolicyNumber}
+                </span>
+              ) : (
+                <span className="text-gray-400 italic">N/A</span>
+              )}
             </Descriptions.Item>
             <Descriptions.Item label="Insurance Expiry">
-              <Tag color="orange" className="!text-sm !px-3 !py-1">
-                {new Date(schoolData.insuranceExpiry).toLocaleDateString("en-IN")}
-              </Tag>
+              {schoolData.insuranceExpiry ? (
+                <Tag color="orange" className="!text-sm !px-3 !py-1">
+                  {new Date(schoolData.insuranceExpiry).toLocaleDateString("en-IN")}
+                </Tag>
+              ) : (
+                <span className="text-gray-400 italic">N/A</span>
+              )}
             </Descriptions.Item>
           </Descriptions>
         </Card>

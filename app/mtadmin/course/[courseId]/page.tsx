@@ -1,447 +1,106 @@
 "use client";
 
-import { useState } from "react";
+import { use, useState } from "react";
 import {
   Card,
   Button,
   Tag,
-  Space,
   Descriptions,
-  Table,
-  Modal,
-  Form,
-  Select,
-  Input,
-  InputNumber,
-  DatePicker,
-  message,
-  Progress,
+  Spin,
   Statistic,
   Row,
   Col,
+  Progress,
+  Modal,
+  Table,
+  Space,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import {
   AntDesignEditOutlined,
   Fa6SolidArrowLeftLong,
-  MaterialSymbolsPersonRounded,
-  MaterialSymbolsCheckCircle,
-  AntDesignCloseCircleOutlined,
+  AntDesignPlusCircleOutlined,
+  AntDesignDeleteOutlined,
 } from "@/components/icons";
 import { useRouter } from "next/navigation";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getCourseById } from "@/services/course.api";
+import {
+  getPaginatedSyllabus,
+  createSyllabus,
+  updateSyllabus,
+  deleteSyllabus,
+  type Syllabus,
+} from "@/services/syllabus.api";
+import { FormProvider, useForm } from "react-hook-form";
+import { valibotResolver } from "@hookform/resolvers/valibot";
+import { onFormError } from "@/utils/methods";
+import { toast } from "react-toastify";
+import { AddSyllabusForm, AddSyllabusSchema } from "@/schema/addsyllabus";
+import { EditSyllabusForm, EditSyllabusSchema } from "@/schema/editsyllabus";
+import { TextInput } from "@/components/form/inputfields/textinput";
+import { Select } from "@/components/form/inputfields/select";
+import { TaxtAreaInput } from "@/components/form/inputfields/textareainput";
 
-const { TextArea } = Input;
-
-interface EnrolledStudent {
-  key: string;
-  studentId: string;
-  studentName: string;
-  email: string;
-  phone: string;
-  enrollmentDate: string;
-  sessionsCompleted: number;
-  sessionsTotal: number;
-  status: "active" | "completed" | "dropped";
-  amountPaid: number;
-}
-
-interface SessionRecord {
-  key: string;
-  sessionId: string;
-  sessionNumber: number;
-  date: string;
-  time: string;
-  topic: string;
-  instructor: string;
-  studentsAttended: number;
-  status: "completed" | "scheduled" | "cancelled";
-}
-
-const CourseDetailPage = ({ params }: { params: { courseId: string } }) => {
+const CourseDetailPage = ({
+  params,
+}: {
+  params: Promise<{ courseId: string }>;
+}) => {
   const router = useRouter();
-  // In real app, use params.courseId to fetch specific course data
-  console.log("Course ID:", params.courseId);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
-  const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
-  const [form] = Form.useForm();
-  const [statusForm] = Form.useForm();
-  const [sessionForm] = Form.useForm();
+  const { courseId: courseIdStr } = use(params);
+  const courseId = parseInt(courseIdStr);
 
-  // Mock course data
-  const [courseData] = useState({
-    courseId: "CRS-001",
-    courseName: "Basic Driving Course",
-    courseType: "beginner",
-    duration: "30 days",
-    totalHours: 20,
-    totalSessions: 10,
-    price: 8500,
-    status: "active",
-    enrolledStudents: 45,
-    maxCapacity: 50,
-    startDate: "2024-11-01",
-    endDate: "2024-11-30",
-    instructor: "Ramesh Kumar",
-    instructorId: "DRV-001",
-    description:
-      "Complete beginner driving course covering all basics including traffic rules, vehicle handling, and road safety.",
-    sessionsCompleted: 6,
-    totalRevenue: 382500,
-    syllabus: [
-      "Introduction to vehicle controls",
-      "Basic steering and gear handling",
-      "Traffic rules and road signs",
-      "Parking techniques",
-      "Highway driving basics",
-    ],
-    requirements: "Valid learner's license required",
+  const { data: courseResponse, isLoading } = useQuery({
+    queryKey: ["course", courseId],
+    queryFn: () => getCourseById(courseId),
   });
 
-  const [enrolledStudents] = useState<EnrolledStudent[]>([
-    {
-      key: "1",
-      studentId: "STD-1001",
-      studentName: "Priya Sharma",
-      email: "priya.sharma@email.com",
-      phone: "+91 98765 43210",
-      enrollmentDate: "2024-10-28",
-      sessionsCompleted: 6,
-      sessionsTotal: 10,
-      status: "active",
-      amountPaid: 8500,
-    },
-    {
-      key: "2",
-      studentId: "STD-1005",
-      studentName: "Rahul Verma",
-      email: "rahul.verma@email.com",
-      phone: "+91 98765 43211",
-      enrollmentDate: "2024-10-29",
-      sessionsCompleted: 6,
-      sessionsTotal: 10,
-      status: "active",
-      amountPaid: 8500,
-    },
-    {
-      key: "3",
-      studentId: "STD-1012",
-      studentName: "Anjali Gupta",
-      email: "anjali.gupta@email.com",
-      phone: "+91 98765 43212",
-      enrollmentDate: "2024-10-30",
-      sessionsCompleted: 5,
-      sessionsTotal: 10,
-      status: "active",
-      amountPaid: 8500,
-    },
-    {
-      key: "4",
-      studentId: "STD-1018",
-      studentName: "Karan Singh",
-      email: "karan.singh@email.com",
-      phone: "+91 98765 43213",
-      enrollmentDate: "2024-10-25",
-      sessionsCompleted: 10,
-      sessionsTotal: 10,
-      status: "completed",
-      amountPaid: 8500,
-    },
-    {
-      key: "5",
-      studentId: "STD-1023",
-      studentName: "Sneha Patel",
-      email: "sneha.patel@email.com",
-      phone: "+91 98765 43214",
-      enrollmentDate: "2024-10-31",
-      sessionsCompleted: 3,
-      sessionsTotal: 10,
-      status: "dropped",
-      amountPaid: 8500,
-    },
-  ]);
-
-  const [sessionHistory] = useState<SessionRecord[]>([
-    {
-      key: "1",
-      sessionId: "SES-001",
-      sessionNumber: 1,
-      date: "2024-11-01",
-      time: "09:00 AM - 11:00 AM",
-      topic: "Introduction to vehicle controls",
-      instructor: "Ramesh Kumar",
-      studentsAttended: 42,
-      status: "completed",
-    },
-    {
-      key: "2",
-      sessionId: "SES-002",
-      sessionNumber: 2,
-      date: "2024-11-04",
-      time: "09:00 AM - 11:00 AM",
-      topic: "Basic steering and gear handling",
-      instructor: "Ramesh Kumar",
-      studentsAttended: 45,
-      status: "completed",
-    },
-    {
-      key: "3",
-      sessionId: "SES-003",
-      sessionNumber: 3,
-      date: "2024-11-06",
-      time: "09:00 AM - 11:00 AM",
-      topic: "Traffic rules and road signs",
-      instructor: "Ramesh Kumar",
-      studentsAttended: 43,
-      status: "completed",
-    },
-    {
-      key: "4",
-      sessionId: "SES-004",
-      sessionNumber: 4,
-      date: "2024-11-08",
-      time: "09:00 AM - 11:00 AM",
-      topic: "Parking techniques - Part 1",
-      instructor: "Ramesh Kumar",
-      studentsAttended: 44,
-      status: "completed",
-    },
-    {
-      key: "5",
-      sessionId: "SES-005",
-      sessionNumber: 5,
-      date: "2024-11-11",
-      time: "09:00 AM - 11:00 AM",
-      topic: "Parking techniques - Part 2",
-      instructor: "Ramesh Kumar",
-      studentsAttended: 0,
-      status: "scheduled",
-    },
-  ]);
+  const courseData = courseResponse?.data?.getCourseById;
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
-      active: "green",
-      inactive: "red",
-      upcoming: "blue",
-      archived: "default",
-      completed: "purple",
-      dropped: "orange",
-      scheduled: "blue",
-      cancelled: "red",
+      ACTIVE: "green",
+      INACTIVE: "red",
+      UPCOMING: "blue",
+      ARCHIVED: "default",
     };
     return colors[status] || "default";
   };
 
-  const getStatusText = (status: string) => {
-    const texts: Record<string, string> = {
-      active: "Active",
-      inactive: "Inactive",
-      upcoming: "Upcoming",
-      archived: "Archived",
-      completed: "Completed",
-      dropped: "Dropped",
-      scheduled: "Scheduled",
-      cancelled: "Cancelled",
-    };
-    return texts[status] || status;
-  };
-
   const getTypeColor = (type: string) => {
     const colors: Record<string, string> = {
-      beginner: "cyan",
-      intermediate: "orange",
-      advanced: "purple",
-      refresher: "magenta",
+      BEGINNER: "blue",
+      INTERMEDIATE: "orange",
+      ADVANCED: "purple",
+      REFRESHER: "cyan",
     };
     return colors[type] || "default";
   };
 
-  const getTypeText = (type: string) => {
-    const texts: Record<string, string> = {
-      beginner: "Beginner",
-      intermediate: "Intermediate",
-      advanced: "Advanced",
-      refresher: "Refresher",
-    };
-    return texts[type] || type;
-  };
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Spin size="large" />
+      </div>
+    );
+  }
 
-  const studentColumns: ColumnsType<EnrolledStudent> = [
-    {
-      title: "Student ID",
-      dataIndex: "studentId",
-      key: "studentId",
-      width: 120,
-    },
-    {
-      title: "Student Name",
-      dataIndex: "studentName",
-      key: "studentName",
-      width: 180,
-      render: (name, record) => (
-        <div>
-          <div className="font-semibold text-gray-900">{name}</div>
-          <div className="text-xs text-gray-500">{record.email}</div>
-        </div>
-      ),
-    },
-    {
-      title: "Phone",
-      dataIndex: "phone",
-      key: "phone",
-      width: 140,
-    },
-    {
-      title: "Enrollment Date",
-      dataIndex: "enrollmentDate",
-      key: "enrollmentDate",
-      width: 130,
-      render: (date) => new Date(date).toLocaleDateString("en-IN"),
-      sorter: (a, b) => a.enrollmentDate.localeCompare(b.enrollmentDate),
-    },
-    {
-      title: "Progress",
-      key: "progress",
-      width: 180,
-      render: (_, record) => {
-        const percentage =
-          (record.sessionsCompleted / record.sessionsTotal) * 100;
-        return (
-          <div>
-            <div className="text-xs text-gray-600 mb-1">
-              {record.sessionsCompleted}/{record.sessionsTotal} sessions
-            </div>
-            <Progress percent={Math.round(percentage)} size="small" />
-          </div>
-        );
-      },
-    },
-    {
-      title: "Amount Paid",
-      dataIndex: "amountPaid",
-      key: "amountPaid",
-      width: 120,
-      render: (amount) => `₹${amount.toLocaleString("en-IN")}`,
-    },
-    {
-      title: "Status",
-      dataIndex: "status",
-      key: "status",
-      width: 120,
-      render: (status: string) => {
-        const icons: Record<string, React.ReactElement> = {
-          active: (
-            <MaterialSymbolsCheckCircle className="text-green-600 text-base" />
-          ),
-          completed: (
-            <MaterialSymbolsCheckCircle className="text-purple-600 text-base" />
-          ),
-          dropped: (
-            <AntDesignCloseCircleOutlined className="text-orange-600 text-base" />
-          ),
-        };
-        return (
-          <Tag
-            color={getStatusColor(status)}
-            icon={icons[status]}
-            className="!flex !items-center !gap-1 !text-sm !px-3 !py-1 !w-fit"
-          >
-            {getStatusText(status)}
-          </Tag>
-        );
-      },
-    },
-  ];
+  if (!courseData) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-8">
+        <Card>
+          <p className="text-center text-gray-500">Course not found</p>
+        </Card>
+      </div>
+    );
+  }
 
-  const sessionColumns: ColumnsType<SessionRecord> = [
-    {
-      title: "Session #",
-      dataIndex: "sessionNumber",
-      key: "sessionNumber",
-      width: 100,
-      render: (num) => <span className="font-semibold">#{num}</span>,
-    },
-    {
-      title: "Date",
-      dataIndex: "date",
-      key: "date",
-      width: 120,
-      render: (date) => new Date(date).toLocaleDateString("en-IN"),
-      sorter: (a, b) => a.date.localeCompare(b.date),
-    },
-    {
-      title: "Time",
-      dataIndex: "time",
-      key: "time",
-      width: 160,
-    },
-    {
-      title: "Topic",
-      dataIndex: "topic",
-      key: "topic",
-      width: 250,
-    },
-    {
-      title: "Instructor",
-      dataIndex: "instructor",
-      key: "instructor",
-      width: 150,
-    },
-    {
-      title: "Attendance",
-      dataIndex: "studentsAttended",
-      key: "studentsAttended",
-      width: 120,
-      align: "center",
-      render: (count, record) =>
-        record.status === "completed" ? (
-          <span className="font-medium">{count} students</span>
-        ) : (
-          <span className="text-gray-400">-</span>
-        ),
-    },
-    {
-      title: "Status",
-      dataIndex: "status",
-      key: "status",
-      width: 120,
-      render: (status: string) => (
-        <Tag
-          color={getStatusColor(status)}
-          className="!text-sm !px-3 !py-1 !font-medium"
-        >
-          {getStatusText(status)}
-        </Tag>
-      ),
-    },
-  ];
-
-  const handleEditCourse = (values: Record<string, unknown>) => {
-    console.log("Edit course:", values);
-    message.success("Course details updated successfully");
-    setIsEditModalOpen(false);
-    form.resetFields();
-  };
-
-  const handleUpdateStatus = (values: Record<string, unknown>) => {
-    console.log("Update status:", values);
-    message.success("Course status updated successfully");
-    setIsStatusModalOpen(false);
-    statusForm.resetFields();
-  };
-
-  const handleAddSession = (values: Record<string, unknown>) => {
-    console.log("Add session:", values);
-    message.success("Session added successfully");
-    setIsSessionModalOpen(false);
-    sessionForm.resetFields();
-  };
-
-  const enrollmentPercentage =
-    (courseData.enrolledStudents / courseData.maxCapacity) * 100;
+  const totalDurationDays = Math.ceil(
+    (courseData.courseDays * courseData.hoursPerDay) / 60
+  );
   const progressPercentage =
-    (courseData.sessionsCompleted / courseData.totalSessions) * 100;
+    (courseData.sessionsCompleted / courseData.courseDays) * 100;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -466,30 +125,20 @@ const CourseDetailPage = ({ params }: { params: { courseId: string } }) => {
                     color={getTypeColor(courseData.courseType)}
                     className="!text-xs !px-2 !py-0"
                   >
-                    {getTypeText(courseData.courseType)}
+                    {courseData.courseType}
                   </Tag>
                 </p>
               </div>
             </div>
-            <Space size="middle">
-              <Button
-                type="default"
-                icon={<AntDesignEditOutlined className="text-lg" />}
-                size="large"
-                onClick={() => setIsStatusModalOpen(true)}
-              >
-                Update Status
-              </Button>
-              <Button
-                type="primary"
-                icon={<AntDesignEditOutlined className="text-lg" />}
-                size="large"
-                onClick={() => setIsEditModalOpen(true)}
-                className="!bg-gradient-to-r from-blue-600 to-purple-600"
-              >
-                Edit Course
-              </Button>
-            </Space>
+            <Button
+              type="primary"
+              icon={<AntDesignEditOutlined className="text-lg" />}
+              size="large"
+              onClick={() => router.push(`/mtadmin/course/${courseIdStr}/edit`)}
+              className="!bg-gradient-to-r from-blue-600 to-purple-600"
+            >
+              Edit Course
+            </Button>
           </div>
         </div>
       </div>
@@ -498,7 +147,7 @@ const CourseDetailPage = ({ params }: { params: { courseId: string } }) => {
         {/* Statistics Cards */}
         <Row gutter={16}>
           <Col xs={24} sm={12} lg={6}>
-            <Card  className="shadow-sm">
+            <Card className="shadow-sm">
               <Statistic
                 title="Total Revenue"
                 value={courseData.totalRevenue}
@@ -508,26 +157,20 @@ const CourseDetailPage = ({ params }: { params: { courseId: string } }) => {
             </Card>
           </Col>
           <Col xs={24} sm={12} lg={6}>
-            <Card  className="shadow-sm">
+            <Card className="shadow-sm">
               <Statistic
                 title="Enrolled Students"
                 value={courseData.enrolledStudents}
-                suffix={`/ ${courseData.maxCapacity}`}
                 valueStyle={{ fontSize: "24px" }}
-              />
-              <Progress
-                percent={Math.round(enrollmentPercentage)}
-                size="small"
-                className="mt-2"
               />
             </Card>
           </Col>
           <Col xs={24} sm={12} lg={6}>
-            <Card  className="shadow-sm">
+            <Card className="shadow-sm">
               <Statistic
                 title="Course Progress"
                 value={courseData.sessionsCompleted}
-                suffix={`/ ${courseData.totalSessions}`}
+                suffix={`/ ${courseData.courseDays}`}
                 valueStyle={{ fontSize: "24px" }}
               />
               <Progress
@@ -538,7 +181,7 @@ const CourseDetailPage = ({ params }: { params: { courseId: string } }) => {
             </Card>
           </Col>
           <Col xs={24} sm={12} lg={6}>
-            <Card  className="shadow-sm">
+            <Card className="shadow-sm">
               <Statistic
                 title="Course Price"
                 value={courseData.price}
@@ -548,344 +191,597 @@ const CourseDetailPage = ({ params }: { params: { courseId: string } }) => {
             </Card>
           </Col>
         </Row>
-
-        {/* Basic Details */}
-        <Card title="Course Details"  className="shadow-sm">
-          <Descriptions bordered column={{ xs: 1, sm: 2, md: 3 }}>
+        {/* Course Information */}
+        <Card title="Course Information" className="shadow-sm">
+          <Descriptions column={{ xs: 1, sm: 2, lg: 3 }} bordered>
+            <Descriptions.Item label="Course ID">
+              {courseData.courseId}
+            </Descriptions.Item>
             <Descriptions.Item label="Course Name">
               {courseData.courseName}
             </Descriptions.Item>
             <Descriptions.Item label="Course Type">
-              <Tag
-                color={getTypeColor(courseData.courseType)}
-                className="!text-sm !px-3 !py-1"
-              >
-                {getTypeText(courseData.courseType)}
+              <Tag color={getTypeColor(courseData.courseType)}>
+                {courseData.courseType}
               </Tag>
             </Descriptions.Item>
-            <Descriptions.Item label="Status">
-              <Tag
-                color={getStatusColor(courseData.status)}
-                className="!text-sm !px-3 !py-1 !font-medium"
-              >
-                {getStatusText(courseData.status)}
-              </Tag>
+            <Descriptions.Item label="Hours Per Day">
+              {courseData.hoursPerDay} minutes
             </Descriptions.Item>
-            <Descriptions.Item label="Duration">
-              {courseData.duration}
+            <Descriptions.Item label="Course Days">
+              {courseData.courseDays} days
             </Descriptions.Item>
-            <Descriptions.Item label="Total Hours">
-              {courseData.totalHours} hours
-            </Descriptions.Item>
-            <Descriptions.Item label="Total Sessions">
-              {courseData.totalSessions} sessions
-            </Descriptions.Item>
-            <Descriptions.Item label="Start Date">
-              {new Date(courseData.startDate).toLocaleDateString("en-IN")}
-            </Descriptions.Item>
-            <Descriptions.Item label="End Date">
-              {new Date(courseData.endDate).toLocaleDateString("en-IN")}
+            <Descriptions.Item label="Total Duration">
+              {totalDurationDays} days
             </Descriptions.Item>
             <Descriptions.Item label="Price">
-              <span className="font-semibold text-green-600">
-                ₹{courseData.price.toLocaleString("en-IN")}
-              </span>
+              ₹{courseData.price.toLocaleString("en-IN")}
             </Descriptions.Item>
-            <Descriptions.Item label="Instructor" span={2}>
-              <div className="flex items-center gap-2">
-                <MaterialSymbolsPersonRounded className="text-lg text-blue-600" />
-                <span className="font-semibold">{courseData.instructor}</span>
-                <span className="text-gray-500 text-sm">
-                  ({courseData.instructorId})
-                </span>
-              </div>
-            </Descriptions.Item>
-            <Descriptions.Item label="Max Capacity">
-              {courseData.maxCapacity} students
+            <Descriptions.Item label="Status">
+              <Tag color={getStatusColor(courseData.status)}>
+                {courseData.status}
+              </Tag>
             </Descriptions.Item>
             <Descriptions.Item label="Description" span={3}>
               {courseData.description}
             </Descriptions.Item>
-            <Descriptions.Item label="Requirements" span={3}>
-              {courseData.requirements}
-            </Descriptions.Item>
+            {courseData.requirements && (
+              <Descriptions.Item label="Requirements" span={3}>
+                {courseData.requirements}
+              </Descriptions.Item>
+            )}   
           </Descriptions>
         </Card>
+        {/* Course Syllabus Management */}
+        <SyllabusManagement courseId={courseId} courseDays={courseData.courseDays} />
+      </div>
+    </div>
+  );
+};
 
-        {/* Syllabus */}
-        <Card title="Course Syllabus"  className="shadow-sm">
-          <ul className="space-y-2">
-            {courseData.syllabus.map((item, index) => (
-              <li key={index} className="flex items-start gap-3">
-                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-semibold">
-                  {index + 1}
-                </span>
-                <span className="text-gray-700">{item}</span>
-              </li>
-            ))}
-          </ul>
-        </Card>
+// Syllabus Management Component
+const SyllabusManagement = ({
+  courseId,
+  courseDays,
+}: {
+  courseId: number;
+  courseDays: number;
+}) => {
+  const queryClient = useQueryClient();
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingSyllabus, setEditingSyllabus] = useState<Syllabus | null>(null);
 
-        {/* Session History */}
-        <Card
-          title="Session History"
-          
-          className="shadow-sm"
-          extra={
-            <Button
-              type="primary"
-              onClick={() => setIsSessionModalOpen(true)}
-            >
-              Add Session
-            </Button>
-          }
-        >
-          <Table
-            columns={sessionColumns}
-            dataSource={sessionHistory}
-            pagination={{ pageSize: 5 }}
-            scroll={{ x: 1000 }}
-          />
-        </Card>
+  // Fetch syllabus for this course
+  const { data: syllabusResponse, isLoading: syllabusLoading } = useQuery({
+    queryKey: ["syllabus", courseId],
+    queryFn: () =>
+      getPaginatedSyllabus({
+        searchPaginationInput: { skip: 0, take: 1000 },
+        whereSearchInput: { courseId },
+      }),
+  });
 
-        {/* Enrolled Students */}
-        <Card
-          title="Enrolled Students"
-          
-          className="shadow-sm"
-          extra={
-            <span className="text-sm text-gray-600">
-              Total: {enrolledStudents.length}
+  const syllabusList = syllabusResponse?.data?.getPaginatedSyllabus?.data || [];
+  
+  // Get available days (days that don't have syllabus yet)
+  const usedDays = syllabusList.map((s) => s.dayNumber);
+  const availableDays = Array.from({ length: courseDays }, (_, i) => i + 1).filter(
+    (day) => !usedDays.includes(day)
+  );
+  
+  // Get day options for edit (current day + available days)
+  const getEditDayOptions = (currentDay: number) => {
+    return Array.from({ length: courseDays }, (_, i) => i + 1).filter(
+      (day) => day === currentDay || !usedDays.includes(day)
+    );
+  };
+
+  const addMethods = useForm<AddSyllabusForm>({
+    resolver: valibotResolver(AddSyllabusSchema),
+  });
+
+  const editMethods = useForm<EditSyllabusForm>({
+    resolver: valibotResolver(EditSyllabusSchema),
+  });
+
+  const createSyllabusMutation = useMutation({
+    mutationFn: async (data: AddSyllabusForm) => {
+      const syllabusId = `SYL-${courseId}-${data.dayNumber}-${Date.now()}`;
+      return await createSyllabus({
+        courseId,
+        syllabusId,
+        dayNumber: parseInt(data.dayNumber),
+        title: data.title,
+        topics: data.topics,
+        objectives: data.objectives,
+        practicalActivities: data.practicalActivities,
+        assessmentCriteria: data.assessmentCriteria,
+        notes: data.notes,
+      });
+    },
+    onSuccess: () => {
+      toast.success("Syllabus created successfully!");
+      queryClient.invalidateQueries({ queryKey: ["syllabus", courseId] });
+      setIsAddModalOpen(false);
+      addMethods.reset();
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to create syllabus");
+    },
+  });
+
+  const updateSyllabusMutation = useMutation({
+    mutationFn: async (data: EditSyllabusForm) => {
+      if (!editingSyllabus) return;
+      return await updateSyllabus({
+        id: editingSyllabus.id,
+        dayNumber: parseInt(data.dayNumber),
+        title: data.title,
+        topics: data.topics,
+        objectives: data.objectives,
+        practicalActivities: data.practicalActivities,
+        assessmentCriteria: data.assessmentCriteria,
+        notes: data.notes,
+      });
+    },
+    onSuccess: () => {
+      toast.success("Syllabus updated successfully!");
+      queryClient.invalidateQueries({ queryKey: ["syllabus", courseId] });
+      setEditingSyllabus(null);
+      editMethods.reset();
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to update syllabus");
+    },
+  });
+
+  const deleteSyllabusMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return await deleteSyllabus(id);
+    },
+    onSuccess: () => {
+      toast.success("Syllabus deleted successfully!");
+      queryClient.invalidateQueries({ queryKey: ["syllabus", courseId] });
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to delete syllabus");
+    },
+  });
+
+  const handleAddSubmit = (data: AddSyllabusForm) => {
+    // Check if day already exists
+    if (usedDays.includes(parseInt(data.dayNumber))) {
+      toast.error(`Day ${data.dayNumber} already has a syllabus!`);
+      return;
+    }
+    Modal.confirm({
+      title: "Add Syllabus",
+      content: `Are you sure you want to add syllabus for Day ${data.dayNumber}?`,
+      okText: "Yes, Add",
+      cancelText: "Cancel",
+      onOk: () => createSyllabusMutation.mutate(data),
+    });
+  };
+
+  const handleEditSubmit = (data: EditSyllabusForm) => {
+    if (!editingSyllabus) return;
+    // Check if changing to a day that already exists
+    if (
+      parseInt(data.dayNumber) !== editingSyllabus.dayNumber &&
+      usedDays.includes(parseInt(data.dayNumber))
+    ) {
+      toast.error(`Day ${data.dayNumber} already has a syllabus!`);
+      return;
+    }
+    Modal.confirm({
+      title: "Update Syllabus",
+      content: `Are you sure you want to update syllabus for Day ${data.dayNumber}?`,
+      okText: "Yes, Update",
+      cancelText: "Cancel",
+      onOk: () => updateSyllabusMutation.mutate(data),
+    });
+  };
+
+  const handleDelete = (syllabus: Syllabus) => {
+    Modal.confirm({
+      title: "Delete Syllabus",
+      content: `Are you sure you want to delete syllabus for Day ${syllabus.dayNumber}?`,
+      okText: "Yes, Delete",
+      cancelText: "Cancel",
+      okButtonProps: { danger: true },
+      onOk: () => deleteSyllabusMutation.mutate(syllabus.id),
+    });
+  };
+
+  const handleEdit = (syllabus: Syllabus) => {
+    setEditingSyllabus(syllabus);
+    editMethods.reset({
+      dayNumber: syllabus.dayNumber.toString(),
+      title: syllabus.title,
+      topics: syllabus.topics,
+      objectives: syllabus.objectives || "",
+      practicalActivities: syllabus.practicalActivities || "",
+      assessmentCriteria: syllabus.assessmentCriteria || "",
+      notes: syllabus.notes || "",
+    });
+  };
+
+  const columns: ColumnsType<Syllabus> = [
+    {
+      title: "Day",
+      dataIndex: "dayNumber",
+      key: "dayNumber",
+      width: 100,
+      sorter: (a, b) => a.dayNumber - b.dayNumber,
+      render: (day) => (
+        <div className="flex items-center justify-center">
+          <span className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 text-blue-600 font-bold text-lg">
+            {day}
+          </span>
+        </div>
+      ),
+    },
+    {
+      title: "Title",
+      dataIndex: "title",
+      key: "title",
+      ellipsis: true,
+      render: (text) => <span className="font-semibold text-base">{text}</span>,
+    },
+    {
+      title: "Topics Overview",
+      dataIndex: "topics",
+      key: "topics",
+      ellipsis: true,
+      render: (topics) => (
+        <span className="text-gray-600">{topics.substring(0, 150)}...</span>
+      ),
+    },
+    {
+      title: "Actions",
+      key: "actions",
+      width: 150,
+      render: (_, record) => (
+        <Space size="small">
+          <Button
+            type="primary"
+            size="small"
+            icon={<AntDesignEditOutlined />}
+            onClick={() => handleEdit(record)}
+          >
+            Edit
+          </Button>
+          <Button
+            danger
+            size="small"
+            icon={<AntDesignDeleteOutlined />}
+            onClick={() => handleDelete(record)}
+          >
+            Delete
+          </Button>
+        </Space>
+      ),
+    },
+  ];
+
+  const expandedRowRender = (record: Syllabus) => (
+    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg space-y-4 border-l-4 border-blue-500">
+      <div className="bg-white p-4 rounded-lg shadow-sm">
+        <h4 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+          <span className="text-blue-600">📋</span> Full Topics:
+        </h4>
+        <p className="text-gray-700 leading-relaxed">{record.topics}</p>
+      </div>
+      
+      {record.objectives && (
+        <div className="bg-white p-4 rounded-lg shadow-sm">
+          <h4 className="font-semibold text-green-900 mb-2 flex items-center gap-2">
+            <span className="text-green-600">🎯</span> Learning Objectives:
+          </h4>
+          <p className="text-gray-700 leading-relaxed">{record.objectives}</p>
+        </div>
+      )}
+      
+      {record.practicalActivities && (
+        <div className="bg-white p-4 rounded-lg shadow-sm">
+          <h4 className="font-semibold text-purple-900 mb-2 flex items-center gap-2">
+            <span className="text-purple-600">🛠️</span> Practical Activities:
+          </h4>
+          <p className="text-gray-700 leading-relaxed">{record.practicalActivities}</p>
+        </div>
+      )}
+      
+      {record.assessmentCriteria && (
+        <div className="bg-white p-4 rounded-lg shadow-sm">
+          <h4 className="font-semibold text-orange-900 mb-2 flex items-center gap-2">
+            <span className="text-orange-600">✅</span> Assessment Criteria:
+          </h4>
+          <p className="text-gray-700 leading-relaxed">{record.assessmentCriteria}</p>
+        </div>
+      )}
+      
+      {record.notes && (
+        <div className="bg-white p-4 rounded-lg shadow-sm">
+          <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+            <span className="text-gray-600">📝</span> Notes:
+          </h4>
+          <p className="text-gray-700 leading-relaxed">{record.notes}</p>
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <Card
+      title={
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <span className="text-xl font-semibold">Course Syllabus</span>
+            <Tag color={syllabusList.length === courseDays ? "success" : "processing"} className="text-sm px-3 py-1">
+              {syllabusList.length}/{courseDays} Days Completed
+            </Tag>
+          </div>
+          <Button
+            type="primary"
+            icon={<AntDesignPlusCircleOutlined />}
+            onClick={() => {
+              setIsAddModalOpen(true);
+              // Reset form with first available day
+              addMethods.reset({
+                dayNumber: availableDays.length > 0 ? availableDays[0].toString() : "1",
+                title: "",
+                topics: "",
+                objectives: "",
+                practicalActivities: "",
+                assessmentCriteria: "",
+                notes: "",
+              });
+            }}
+            disabled={availableDays.length === 0}
+            className="!bg-gradient-to-r from-green-600 to-teal-600"
+          >
+            Add Syllabus
+          </Button>
+        </div>
+      }
+      className="shadow-sm"
+    >
+      {/* Progress Section */}
+      <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-medium text-gray-700">Syllabus Progress</span>
+          <span className="text-sm font-semibold text-blue-600">
+            {((syllabusList.length / courseDays) * 100).toFixed(0)}% Complete
+          </span>
+        </div>
+        <Progress 
+          percent={(syllabusList.length / courseDays) * 100} 
+          strokeColor={{
+            '0%': '#3b82f6',
+            '100%': '#8b5cf6',
+          }}
+          showInfo={false}
+        />
+        <div className="flex items-center justify-between mt-2">
+          <span className="text-xs text-gray-600">
+            {syllabusList.length} of {courseDays} days completed
+          </span>
+          {availableDays.length > 0 && (
+            <span className="text-xs text-orange-600 font-medium">
+              {availableDays.length} days remaining
             </span>
-          }
-        >
-          <Table
-            columns={studentColumns}
-            dataSource={enrolledStudents}
-            pagination={{ pageSize: 5 }}
-            scroll={{ x: 1000 }}
-          />
-        </Card>
+          )}
+          {availableDays.length === 0 && (
+            <span className="text-xs text-green-600 font-medium">
+              ✓ All days completed
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Edit Course Modal */}
+      <Table
+        columns={columns}
+        dataSource={syllabusList}
+        loading={syllabusLoading}
+        rowKey="id"
+        pagination={{ pageSize: 10 }}
+        expandable={{
+          expandedRowRender,
+          rowExpandable: (record) =>
+            !!(
+              record.objectives ||
+              record.practicalActivities ||
+              record.assessmentCriteria ||
+              record.notes
+            ),
+        }}
+      />
+
+      {/* Add Syllabus Modal */}
       <Modal
-        title="Edit Course Details"
-        open={isEditModalOpen}
+        title={
+          <div className="flex items-center gap-2 text-lg">
+            <span className="text-2xl">📚</span>
+            <span>Add New Syllabus</span>
+          </div>
+        }
+        open={isAddModalOpen}
         onCancel={() => {
-          setIsEditModalOpen(false);
-          form.resetFields();
+          setIsAddModalOpen(false);
+          addMethods.reset();
         }}
         footer={null}
-        width={600}
+        width={800}
       >
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleEditCourse}
-          initialValues={{
-            courseName: courseData.courseName,
-            price: courseData.price,
-            maxCapacity: courseData.maxCapacity,
-            instructorId: courseData.instructorId,
-          }}
-        >
-          <Form.Item
-            name="courseName"
-            label="Course Name"
-            rules={[{ required: true, message: "Please enter course name" }]}
-          >
-            <Input size="large" />
-          </Form.Item>
-          <Form.Item
-            name="price"
-            label="Price (₹)"
-            rules={[{ required: true, message: "Please enter price" }]}
-          >
-            <InputNumber size="large" className="w-full" min={0} />
-          </Form.Item>
-          <Form.Item
-            name="maxCapacity"
-            label="Max Capacity"
-            rules={[{ required: true, message: "Please enter max capacity" }]}
-          >
-            <InputNumber size="large" className="w-full" min={1} />
-          </Form.Item>
-          <Form.Item
-            name="instructorId"
-            label="Instructor"
-            rules={[{ required: true, message: "Please select instructor" }]}
-          >
-            <Select
-              size="large"
-              options={[
-                { label: "Ramesh Kumar (DRV-001)", value: "DRV-001" },
-                { label: "Suresh Sharma (DRV-002)", value: "DRV-002" },
-                { label: "Vikram Singh (DRV-003)", value: "DRV-003" },
-                { label: "Ajay Verma (DRV-004)", value: "DRV-004" },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item name="description" label="Description">
-            <TextArea rows={3} />
-          </Form.Item>
-          <Form.Item className="mb-0">
-            <Space className="w-full justify-end">
+        <FormProvider {...addMethods}>
+          <form onSubmit={addMethods.handleSubmit(handleAddSubmit, onFormError)}>
+            <div className="space-y-4 mt-4">
+              <Select<AddSyllabusForm>
+                name="dayNumber"
+                title="Select Day"
+                required
+                options={availableDays.map((day) => ({
+                  label: `Day ${day}`,
+                  value: day.toString(),
+                }))}
+              />
+              {availableDays.length === 0 && (
+                <div className="text-red-500 text-sm -mt-2">
+                  All days have syllabus created. Edit or delete existing syllabus to add new ones.
+                </div>
+              )}
+              <TextInput<AddSyllabusForm>
+                name="title"
+                title="Lesson Title"
+                placeholder="e.g., Introduction to Traffic Rules"
+                required
+              />
+              <TaxtAreaInput<AddSyllabusForm>
+                name="topics"
+                title="Topics (Required)"
+                placeholder="Enter the topics covered in this lesson"
+                required
+              />
+              <TaxtAreaInput<AddSyllabusForm>
+                name="objectives"
+                title="Learning Objectives (Optional)"
+                placeholder="Enter the learning objectives"
+                required={false}
+              />
+              <TaxtAreaInput<AddSyllabusForm>
+                name="practicalActivities"
+                title="Practical Activities (Optional)"
+                placeholder="Enter practical activities"
+                required={false}
+              />
+              <TaxtAreaInput<AddSyllabusForm>
+                name="assessmentCriteria"
+                title="Assessment Criteria (Optional)"
+                placeholder="Enter assessment criteria"
+                required={false}
+              />
+              <TaxtAreaInput<AddSyllabusForm>
+                name="notes"
+                title="Notes (Optional)"
+                placeholder="Enter any additional notes"
+                required={false}
+              />
+            </div>
+            <div className="flex justify-end gap-3 mt-8 pt-4 border-t">
               <Button
+                size="large"
                 onClick={() => {
-                  setIsEditModalOpen(false);
-                  form.resetFields();
+                  setIsAddModalOpen(false);
+                  addMethods.reset();
                 }}
               >
                 Cancel
               </Button>
-              <Button type="primary" htmlType="submit">
-                Update Course
+              <Button
+                type="primary"
+                size="large"
+                htmlType="submit"
+                loading={createSyllabusMutation.isPending}
+                className="!bg-gradient-to-r from-green-600 to-teal-600 hover:!from-green-700 hover:!to-teal-700"
+                icon={<AntDesignPlusCircleOutlined />}
+              >
+                Add Syllabus
               </Button>
-            </Space>
-          </Form.Item>
-        </Form>
+            </div>
+          </form>
+        </FormProvider>
       </Modal>
 
-      {/* Update Status Modal */}
+      {/* Edit Syllabus Modal */}
       <Modal
-        title="Update Course Status"
-        open={isStatusModalOpen}
+        title={
+          <div className="flex items-center gap-2 text-lg">
+            <span className="text-2xl">✏️</span>
+            <span>Edit Syllabus - Day {editingSyllabus?.dayNumber}</span>
+          </div>
+        }
+        open={!!editingSyllabus}
         onCancel={() => {
-          setIsStatusModalOpen(false);
-          statusForm.resetFields();
+          setEditingSyllabus(null);
+          editMethods.reset();
         }}
         footer={null}
-        width={500}
+        width={800}
       >
-        <Form
-          form={statusForm}
-          layout="vertical"
-          onFinish={handleUpdateStatus}
-          initialValues={{
-            status: courseData.status,
-          }}
-        >
-          <Form.Item
-            name="status"
-            label="Select Status"
-            rules={[{ required: true, message: "Please select status" }]}
-          >
-            <Select
-              size="large"
-              options={[
-                { label: "Active", value: "active" },
-                { label: "Inactive", value: "inactive" },
-                { label: "Upcoming", value: "upcoming" },
-                { label: "Archived", value: "archived" },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item name="reason" label="Reason (Optional)">
-            <TextArea rows={3} placeholder="Reason for status change..." />
-          </Form.Item>
-          <Form.Item className="mb-0">
-            <Space className="w-full justify-end">
+        <FormProvider {...editMethods}>
+          <form onSubmit={editMethods.handleSubmit(handleEditSubmit, onFormError)}>
+            <div className="space-y-4 mt-4">
+              <Select<EditSyllabusForm>
+                name="dayNumber"
+                title="Select Day"
+                required
+                options={getEditDayOptions(editingSyllabus?.dayNumber || 1).map((day) => ({
+                  label: `Day ${day}`,
+                  value: day.toString(),
+                }))}
+              />
+              <TextInput<EditSyllabusForm>
+                name="title"
+                title="Lesson Title"
+                placeholder="e.g., Introduction to Traffic Rules"
+                required
+              />
+              <TaxtAreaInput<EditSyllabusForm>
+                name="topics"
+                title="Topics (Required)"
+                placeholder="Enter the topics covered in this lesson"
+                required
+              />
+              <TaxtAreaInput<EditSyllabusForm>
+                name="objectives"
+                title="Learning Objectives (Optional)"
+                placeholder="Enter the learning objectives"
+                required={false}
+              />
+              <TaxtAreaInput<EditSyllabusForm>
+                name="practicalActivities"
+                title="Practical Activities (Optional)"
+                placeholder="Enter practical activities"
+                required={false}
+              />
+              <TaxtAreaInput<EditSyllabusForm>
+                name="assessmentCriteria"
+                title="Assessment Criteria (Optional)"
+                placeholder="Enter assessment criteria"
+                required={false}
+              />
+              <TaxtAreaInput<EditSyllabusForm>
+                name="notes"
+                title="Notes (Optional)"
+                placeholder="Enter any additional notes"
+                required={false}
+              />
+            </div>
+            <div className="flex justify-end gap-3 mt-8 pt-4 border-t">
               <Button
+                size="large"
                 onClick={() => {
-                  setIsStatusModalOpen(false);
-                  statusForm.resetFields();
+                  setEditingSyllabus(null);
+                  editMethods.reset();
                 }}
               >
                 Cancel
               </Button>
-              <Button type="primary" htmlType="submit">
-                Update Status
-              </Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      {/* Add Session Modal */}
-      <Modal
-        title="Add New Session"
-        open={isSessionModalOpen}
-        onCancel={() => {
-          setIsSessionModalOpen(false);
-          sessionForm.resetFields();
-        }}
-        footer={null}
-        width={600}
-      >
-        <Form
-          form={sessionForm}
-          layout="vertical"
-          onFinish={handleAddSession}
-        >
-          <Form.Item
-            name="sessionNumber"
-            label="Session Number"
-            rules={[
-              { required: true, message: "Please enter session number" },
-            ]}
-          >
-            <InputNumber
-              size="large"
-              className="w-full"
-              min={1}
-              placeholder="e.g., 11"
-            />
-          </Form.Item>
-          <Form.Item
-            name="date"
-            label="Session Date"
-            rules={[{ required: true, message: "Please select date" }]}
-          >
-            <DatePicker size="large" className="w-full" />
-          </Form.Item>
-          <Form.Item
-            name="time"
-            label="Time"
-            rules={[{ required: true, message: "Please enter time" }]}
-          >
-            <Input size="large" placeholder="e.g., 09:00 AM - 11:00 AM" />
-          </Form.Item>
-          <Form.Item
-            name="topic"
-            label="Topic"
-            rules={[{ required: true, message: "Please enter topic" }]}
-          >
-            <Input size="large" placeholder="Session topic" />
-          </Form.Item>
-          <Form.Item
-            name="instructor"
-            label="Instructor"
-            rules={[{ required: true, message: "Please select instructor" }]}
-          >
-            <Select
-              size="large"
-              options={[
-                { label: "Ramesh Kumar", value: "Ramesh Kumar" },
-                { label: "Suresh Sharma", value: "Suresh Sharma" },
-                { label: "Vikram Singh", value: "Vikram Singh" },
-                { label: "Ajay Verma", value: "Ajay Verma" },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item className="mb-0">
-            <Space className="w-full justify-end">
               <Button
-                onClick={() => {
-                  setIsSessionModalOpen(false);
-                  sessionForm.resetFields();
-                }}
+                type="primary"
+                size="large"
+                htmlType="submit"
+                loading={updateSyllabusMutation.isPending}
+                className="!bg-gradient-to-r from-blue-600 to-indigo-600 hover:!from-blue-700 hover:!to-indigo-700"
+                icon={<AntDesignEditOutlined />}
               >
-                Cancel
+                Update Syllabus
               </Button>
-              <Button type="primary" htmlType="submit">
-                Add Session
-              </Button>
-            </Space>
-          </Form.Item>
-        </Form>
+            </div>
+          </form>
+        </FormProvider>
       </Modal>
-    </div>
+    </Card>
   );
 };
 

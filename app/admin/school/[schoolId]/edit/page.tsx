@@ -1,14 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Card, Form, Input, Button, Select, message, Upload } from "antd";
+import { useState, useEffect, use } from "react";
+import { Card, Form, Input, Button, Select, message, Spin } from "antd";
 import {
   IcBaselineArrowBack,
   AntDesignCheckOutlined,
-  AntDesignPlusCircleOutlined,
 } from "@/components/icons";
 import { useRouter } from "next/navigation";
-import type { UploadFile } from "antd";
+import { getSchoolById, updateSchool } from "@/services/school.api";
 
 const { TextArea } = Input;
 
@@ -22,47 +21,78 @@ interface SchoolFormValues {
   gstNumber: string;
   establishedYear: string;
   website: string;
-  status: string;
+  status: "ACTIVE" | "INACTIVE" | "SUSPENDED";
 }
 
-const EditSchoolPage = ({ params }: { params: { schoolId: string } }) => {
+const EditSchoolPage = ({ params }: { params: Promise<{ schoolId: string }> }) => {
+  const resolvedParams = use(params);
   const router = useRouter();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
-  const [logoImage, setLogoImage] = useState<UploadFile[]>([]);
+  const [fetching, setFetching] = useState(true);
 
   // Load existing data
   useEffect(() => {
-    const mockData = {
-      name: "iDrive Driving School - Rohini",
-      email: "rohini@idrive.com",
-      phone: "+91 9876543210",
-      alternatePhone: "+91 9876543211",
-      address: "Plot No. 123, Sector 15, Rohini, New Delhi - 110085, India",
-      registrationNumber: "DL/DS/2022/12345",
-      gstNumber: "07AABCI1234F1Z5",
-      establishedYear: "2022",
-      website: "https://www.idrive-rohini.com",
-      status: "active",
+    const fetchSchoolData = async () => {
+      setFetching(true);
+      try {
+        const response = await getSchoolById(parseInt(resolvedParams.schoolId));
+        
+        if (response.status && response.data.getSchoolById) {
+          const school = response.data.getSchoolById;
+          form.setFieldsValue({
+            name: school.name,
+            email: school.email,
+            phone: school.phone,
+            alternatePhone: school.alternatePhone,
+            address: school.address,
+            registrationNumber: school.registrationNumber,
+            gstNumber: school.gstNumber,
+            establishedYear: school.establishedYear,
+            website: school.website,
+            status: school.status,
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching school:", error);
+        message.error("Failed to load school data");
+      } finally {
+        setFetching(false);
+      }
     };
 
-    form.setFieldsValue(mockData);
-  }, [form]);
+    fetchSchoolData();
+  }, [form, resolvedParams.schoolId]);
 
   const handleSubmit = async (values: SchoolFormValues) => {
     setLoading(true);
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      console.log("Updated values:", values);
-      message.success("School information updated successfully!");
-      router.push(`/admin/school/${params.schoolId}`);
-    } catch {
+      const response = await updateSchool({
+        id: parseInt(resolvedParams.schoolId),
+        ...values,
+      });
+      
+      if (response.status && response.data.updateSchool) {
+        message.success("School information updated successfully!");
+        router.push(`/admin/school/${resolvedParams.schoolId}`);
+      } else {
+        message.error(response.message || "Failed to update school");
+      }
+    } catch (error) {
+      console.error("Error updating school:", error);
       message.error("Failed to update school. Please try again.");
     } finally {
       setLoading(false);
     }
   };
+
+  if (fetching) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Spin size="large" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -72,7 +102,7 @@ const EditSchoolPage = ({ params }: { params: { schoolId: string } }) => {
           <div className="flex items-center gap-4 mb-2">
             <Button
               icon={<IcBaselineArrowBack className="text-lg" />}
-              onClick={() => router.push(`/admin/school/${params.schoolId}`)}
+              onClick={() => router.push(`/admin/school/${resolvedParams.schoolId}`)}
               size="large"
             >
               Back to School Details
@@ -81,7 +111,7 @@ const EditSchoolPage = ({ params }: { params: { schoolId: string } }) => {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Edit School</h1>
             <p className="text-gray-600 mt-1 text-sm">
-              Update school information - ID: {params.schoolId}
+              Update school information - ID: {resolvedParams.schoolId}
             </p>
           </div>
         </div>
@@ -95,32 +125,6 @@ const EditSchoolPage = ({ params }: { params: { schoolId: string } }) => {
             onFinish={handleSubmit}
             autoComplete="off"
           >
-            {/* School Logo */}
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
-                School Logo
-              </h3>
-              <Form.Item label="Upload School Logo" name="logo">
-                <Upload
-                  listType="picture-card"
-                  fileList={logoImage}
-                  onChange={({ fileList }) => setLogoImage(fileList)}
-                  beforeUpload={() => false}
-                  maxCount={1}
-                >
-                  {logoImage.length === 0 && (
-                    <div>
-                      <AntDesignPlusCircleOutlined className="text-2xl" />
-                      <div className="mt-2">Upload Logo</div>
-                    </div>
-                  )}
-                </Upload>
-                <p className="text-xs text-gray-500 mt-2">
-                  Recommended size: 200x200 pixels. Max size: 2MB
-                </p>
-              </Form.Item>
-            </div>
-
             {/* Basic Information */}
             <div className="mb-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
@@ -159,10 +163,9 @@ const EditSchoolPage = ({ params }: { params: { schoolId: string } }) => {
                 </Form.Item>
 
                 <Form.Item
-                  label="GST Number"
+                  label="GST Number (Optional)"
                   name="gstNumber"
                   rules={[
-                    { required: true, message: "Please enter GST number" },
                     {
                       pattern: /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/,
                       message: "Please enter valid GST number",
@@ -198,10 +201,9 @@ const EditSchoolPage = ({ params }: { params: { schoolId: string } }) => {
                 </Form.Item>
 
                 <Form.Item
-                  label="Website"
+                  label="Website (Optional)"
                   name="website"
                   rules={[
-                    { required: true, message: "Please enter website URL" },
                     { type: "url", message: "Please enter valid URL" },
                   ]}
                 >
@@ -292,9 +294,9 @@ const EditSchoolPage = ({ params }: { params: { schoolId: string } }) => {
                     size="large"
                     placeholder="Select status"
                     options={[
-                      { label: "Active", value: "active" },
-                      { label: "Inactive", value: "inactive" },
-                      { label: "Suspended", value: "suspended" },
+                      { label: "Active", value: "ACTIVE" },
+                      { label: "Inactive", value: "INACTIVE" },
+                      { label: "Suspended", value: "SUSPENDED" },
                     ]}
                   />
                 </Form.Item>
@@ -328,7 +330,7 @@ const EditSchoolPage = ({ params }: { params: { schoolId: string } }) => {
               <Button
                 type="default"
                 size="large"
-                onClick={() => router.push(`/admin/school/${params.schoolId}`)}
+                onClick={() => router.push(`/admin/school/${resolvedParams.schoolId}`)}
                 className="flex-1"
               >
                 Cancel

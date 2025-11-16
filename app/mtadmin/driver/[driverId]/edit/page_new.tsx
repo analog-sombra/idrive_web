@@ -4,156 +4,143 @@ import { FormProvider, useForm } from "react-hook-form";
 import { valibotResolver } from "@hookform/resolvers/valibot";
 import { onFormError } from "@/utils/methods";
 import { useRouter } from "next/navigation";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "react-toastify";
-import { AddDriverForm, AddDriverSchema } from "@/schema/adddriver";
+import { EditDriverForm, EditDriverSchema } from "@/schema/editdriver";
 import { TextInput } from "@/components/form/inputfields/textinput";
 import { DateInput } from "@/components/form/inputfields/dateinput";
 import { Select } from "@/components/form/inputfields/select";
 import { TaxtAreaInput } from "@/components/form/inputfields/textareainput";
-import { Button, Card, Modal } from "antd";
-import {
-  Fa6SolidArrowLeftLong,
-  AntDesignPlusCircleOutlined,
-} from "@/components/icons";
-import { createDriver } from "@/services/driver.api";
-import { ApiCall } from "@/services/api";
-import { getCookie } from "cookies-next";
+import { Button, Card, Modal, Spin } from "antd";
+import { IcBaselineArrowBack, AntDesignCheckOutlined } from "@/components/icons";
+import { getDriverById, updateDriver } from "@/services/driver.api";
+import { use, useEffect } from "react";
+import dayjs from "dayjs";
 
-const AddDriverPage = () => {
+const EditDriverPage = ({ params }: { params: Promise<{ driverId: string }> }) => {
   const router = useRouter();
-  const schoolId: number = parseInt(getCookie("school")?.toString() || "0");
+  const { driverId } = use(params);
+  const numericDriverId = parseInt(driverId);
 
-  const methods = useForm<AddDriverForm>({
-    resolver: valibotResolver(AddDriverSchema),
+  const methods = useForm<EditDriverForm>({
+    resolver: valibotResolver(EditDriverSchema),
   });
 
-  const createDriverMutation = useMutation({
-    mutationKey: ["createDriverWithUser"],
-    mutationFn: async (data: AddDriverForm) => {
-      if (!schoolId) {
-        throw new Error("School ID not found. Please login again.");
+  // Fetch existing driver data
+  const { data: driverData, isLoading } = useQuery({
+    queryKey: ["driver", numericDriverId],
+    queryFn: async () => {
+      const response = await getDriverById(numericDriverId);
+      if (!response.status || !response.data.getDriverById) {
+        throw new Error(response.message || "Failed to fetch driver");
       }
+      return response.data.getDriverById;
+    },
+  });
 
-      // Generate password: First 4 letters (capitalized) + @ + last 4 mobile digits
-      const driverNamePart = data.name.substring(0, 4);
-      const formattedName =
-        driverNamePart.charAt(0).toUpperCase() +
-        driverNamePart.slice(1).toLowerCase();
-      const last4Digits = data.mobile.slice(-4);
-      const generatedPassword = `${formattedName}@${last4Digits}`;
-
-      // Create user first with DRIVER role
-      const userResponse = await ApiCall({
-        query: `mutation CreateUser($inputType: CreateUserInput!) {
-          createUser(inputType: $inputType) {
-            id
-            contact1
-            role
-          }
-        }`,
-        variables: {
-          inputType: {
-            contact1: data.mobile,
-            password: generatedPassword,
-            role: "DRIVER",
-            name: data.name,
-            schoolId: schoolId,
-          },
-        },
+  // Pre-fill form when data is loaded
+  useEffect(() => {
+    if (driverData) {
+      methods.reset({
+        name: driverData.name || "",
+        email: driverData.email || "",
+        mobile: driverData.mobile || "",
+        alternatePhone: driverData.alternatePhone || "",
+        dateOfBirth: driverData.dateOfBirth
+          ? dayjs(driverData.dateOfBirth).format("YYYY-MM-DD")
+          : "",
+        bloodGroup: driverData.bloodGroup || "",
+        gender: driverData.gender || "",
+        address: driverData.address || "",
+        licenseNumber: driverData.licenseNumber || "",
+        licenseType: driverData.licenseType || "",
+        licenseIssueDate: driverData.licenseIssueDate
+          ? dayjs(driverData.licenseIssueDate).format("YYYY-MM-DD")
+          : "",
+        licenseExpiryDate: driverData.licenseExpiryDate
+          ? dayjs(driverData.licenseExpiryDate).format("YYYY-MM-DD")
+          : "",
+        experience: driverData.experience?.toString() || "",
+        joiningDate: driverData.joiningDate
+          ? dayjs(driverData.joiningDate).format("YYYY-MM-DD")
+          : "",
+        salary: driverData.salary?.toString() || "",
+        status: driverData.status || "ACTIVE",
+        emergencyContactName: driverData.emergencyContactName || "",
+        emergencyContactNumber: driverData.emergencyContactNumber || "",
+        emergencyContactRelation: driverData.emergencyContactRelation || "",
       });
+    }
+  }, [driverData, methods]);
 
-      if (!userResponse.status) {
-        throw new Error(userResponse.message || "Failed to create user");
-      }
-
-      const user = (userResponse.data as Record<string, unknown>)["createUser"] as { id: string };
-
-      // Generate driverId: DRV-{schoolId}-{timestamp}
-      const driverId = `DRV-${schoolId}-${Date.now()}`;
-
-      // Create driver with userId
-      const driverResponse = await createDriver({
+  const updateDriverMutation = useMutation({
+    mutationKey: ["updateDriver", numericDriverId],
+    mutationFn: async (data: EditDriverForm) => {
+      const response = await updateDriver({
+        id: numericDriverId,
         name: data.name,
         email: data.email,
         mobile: data.mobile,
         alternatePhone: data.alternatePhone,
-        address: data.address,
-        dateOfBirth: new Date(data.dateOfBirth),
+        dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : undefined,
         bloodGroup: data.bloodGroup,
         gender: data.gender,
+        address: data.address,
         licenseNumber: data.licenseNumber,
         licenseType: data.licenseType,
-        licenseIssueDate: new Date(data.licenseIssueDate),
-        licenseExpiryDate: new Date(data.licenseExpiryDate),
+        licenseIssueDate: data.licenseIssueDate ? new Date(data.licenseIssueDate) : undefined,
+        licenseExpiryDate: data.licenseExpiryDate
+          ? new Date(data.licenseExpiryDate)
+          : undefined,
         experience: data.experience ? parseInt(data.experience) : undefined,
         joiningDate: data.joiningDate ? new Date(data.joiningDate) : undefined,
         salary: data.salary ? parseFloat(data.salary) : undefined,
+        status: data.status as "ACTIVE" | "INACTIVE" | "ON_LEAVE" | "SUSPENDED",
         emergencyContactName: data.emergencyContactName,
         emergencyContactNumber: data.emergencyContactNumber,
         emergencyContactRelation: data.emergencyContactRelation,
-        schoolId: schoolId,
-        userId: parseInt(user.id),
-        driverId: driverId,
       });
 
-      if (!driverResponse.status) {
-        throw new Error(driverResponse.message || "Failed to create driver");
+      if (!response.status) {
+        throw new Error(response.message || "Failed to update driver");
       }
 
-      return { driver: driverResponse.data, generatedPassword, mobile: data.mobile };
+      return response.data;
     },
-    onSuccess: (data) => {
-      Modal.success({
-        title: "Driver Created Successfully!",
-        content: (
-          <div className="space-y-2">
-            <p><strong>Driver Name:</strong> {data.driver?.createDriver?.name}</p>
-            <p><strong>Mobile:</strong> {data.mobile}</p>
-            <p><strong>Login Password:</strong> {data.generatedPassword}</p>
-            <p className="text-xs text-gray-600 mt-2">
-              Please note down the password. The driver can use mobile number and this password to login.
-            </p>
-          </div>
-        ),
-        onOk: () => router.push("/mtadmin/driver"),
-      });
+    onSuccess: () => {
+      toast.success("Driver updated successfully!");
+      router.push(`/mtadmin/driver/${driverId}`);
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to create driver. Please try again.");
+      toast.error(error.message || "Failed to update driver. Please try again.");
     },
   });
 
-  const onSubmit = (data: AddDriverForm) => {
-    const driverNamePart = data.name.substring(0, 4);
-    const formattedName = driverNamePart.charAt(0).toUpperCase() + driverNamePart.slice(1).toLowerCase();
-    const last4Digits = data.mobile.slice(-4);
-    const generatedPassword = `${formattedName}@${last4Digits}`;
-
+  const onSubmit = (data: EditDriverForm) => {
     Modal.confirm({
-      title: "Confirm Driver Creation",
+      title: "Confirm Driver Update",
       content: (
         <div>
-          <p><strong>Driver Name:</strong> {data.name}</p>
-          <p><strong>Email:</strong> {data.email}</p>
-          <p><strong>Mobile:</strong> {data.mobile}</p>
-          <p><strong>License Number:</strong> {data.licenseNumber}</p>
-          <br />
-          <p className="text-gray-600">
-            A user account will be created automatically with the following credentials:
+          <p>
+            <strong>Driver Name:</strong> {data.name}
           </p>
-          <p className="text-sm text-blue-600">
-            <strong>Username:</strong> {data.mobile}<br />
-            <strong>Password:</strong> {generatedPassword}
+          <p>
+            <strong>Email:</strong> {data.email}
+          </p>
+          <p>
+            <strong>Mobile:</strong> {data.mobile}
+          </p>
+          <p>
+            <strong>Status:</strong> {data.status}
           </p>
           <br />
-          <p>Are you sure you want to create this driver?</p>
+          <p>Are you sure you want to update this driver?</p>
         </div>
       ),
-      okText: "Yes, Create Driver",
+      okText: "Yes, Update Driver",
       cancelText: "Cancel",
       onOk: () => {
-        createDriverMutation.mutate(data);
+        updateDriverMutation.mutate(data);
       },
       okButtonProps: {
         className: "!bg-green-600",
@@ -161,29 +148,33 @@ const AddDriverPage = () => {
     });
   };
 
-  const handleReset = () => {
-    methods.reset();
-    toast.info("Form reset");
-  };
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Spin size="large" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b border-gray-200">
         <div className="px-8 py-6">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 mb-2">
             <Button
-              type="text"
-              icon={<Fa6SolidArrowLeftLong className="text-lg" />}
+              icon={<IcBaselineArrowBack className="text-lg" />}
+              onClick={() => router.push(`/mtadmin/driver/${driverId}`)}
               size="large"
-              onClick={() => router.push("/mtadmin/driver")}
-            />
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Add New Driver</h1>
-              <p className="text-gray-600 mt-1 text-sm">
-                Fill in the details to register a new driver
-              </p>
-            </div>
+            >
+              Back to Driver Profile
+            </Button>
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Edit Driver</h1>
+            <p className="text-gray-600 mt-1 text-sm">
+              Update driver information - ID: {driverId}
+            </p>
           </div>
         </div>
       </div>
@@ -199,7 +190,7 @@ const AddDriverPage = () => {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <TextInput<AddDriverForm>
+                    <TextInput<EditDriverForm>
                       name="name"
                       title="Full Name"
                       placeholder="Enter full name"
@@ -207,7 +198,7 @@ const AddDriverPage = () => {
                     />
                   </div>
                   <div>
-                    <TextInput<AddDriverForm>
+                    <TextInput<EditDriverForm>
                       name="email"
                       title="Email"
                       placeholder="Enter email address"
@@ -215,7 +206,7 @@ const AddDriverPage = () => {
                     />
                   </div>
                   <div>
-                    <TextInput<AddDriverForm>
+                    <TextInput<EditDriverForm>
                       name="mobile"
                       title="Mobile Number"
                       placeholder="Enter 10-digit mobile number"
@@ -225,7 +216,7 @@ const AddDriverPage = () => {
                     />
                   </div>
                   <div>
-                    <TextInput<AddDriverForm>
+                    <TextInput<EditDriverForm>
                       name="alternatePhone"
                       title="Alternate Phone (Optional)"
                       placeholder="Enter 10-digit alternate number"
@@ -235,7 +226,7 @@ const AddDriverPage = () => {
                     />
                   </div>
                   <div>
-                    <DateInput<AddDriverForm>
+                    <DateInput<EditDriverForm>
                       name="dateOfBirth"
                       title="Date of Birth"
                       placeholder="Select date of birth"
@@ -243,7 +234,7 @@ const AddDriverPage = () => {
                     />
                   </div>
                   <div>
-                    <Select<AddDriverForm>
+                    <Select<EditDriverForm>
                       name="bloodGroup"
                       title="Blood Group (Optional)"
                       placeholder="Select blood group"
@@ -261,7 +252,7 @@ const AddDriverPage = () => {
                     />
                   </div>
                   <div>
-                    <Select<AddDriverForm>
+                    <Select<EditDriverForm>
                       name="gender"
                       title="Gender"
                       placeholder="Select gender"
@@ -274,7 +265,7 @@ const AddDriverPage = () => {
                     />
                   </div>
                   <div className="md:col-span-2">
-                    <TaxtAreaInput<AddDriverForm>
+                    <TaxtAreaInput<EditDriverForm>
                       name="address"
                       title="Address"
                       placeholder="Enter complete address"
@@ -291,7 +282,7 @@ const AddDriverPage = () => {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <TextInput<AddDriverForm>
+                    <TextInput<EditDriverForm>
                       name="licenseNumber"
                       title="License Number"
                       placeholder="e.g., DL-0320190012345"
@@ -299,7 +290,7 @@ const AddDriverPage = () => {
                     />
                   </div>
                   <div>
-                    <Select<AddDriverForm>
+                    <Select<EditDriverForm>
                       name="licenseType"
                       title="License Type"
                       placeholder="Select license type"
@@ -313,7 +304,7 @@ const AddDriverPage = () => {
                     />
                   </div>
                   <div>
-                    <DateInput<AddDriverForm>
+                    <DateInput<EditDriverForm>
                       name="licenseIssueDate"
                       title="License Issue Date"
                       placeholder="Select issue date"
@@ -321,7 +312,7 @@ const AddDriverPage = () => {
                     />
                   </div>
                   <div>
-                    <DateInput<AddDriverForm>
+                    <DateInput<EditDriverForm>
                       name="licenseExpiryDate"
                       title="License Expiry Date"
                       placeholder="Select expiry date"
@@ -336,9 +327,9 @@ const AddDriverPage = () => {
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
                   Professional Information
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <TextInput<AddDriverForm>
+                    <TextInput<EditDriverForm>
                       name="experience"
                       title="Years of Experience (Optional)"
                       placeholder="e.g., 5"
@@ -347,7 +338,7 @@ const AddDriverPage = () => {
                     />
                   </div>
                   <div>
-                    <DateInput<AddDriverForm>
+                    <DateInput<EditDriverForm>
                       name="joiningDate"
                       title="Joining Date (Optional)"
                       placeholder="Select joining date"
@@ -355,13 +346,27 @@ const AddDriverPage = () => {
                     />
                   </div>
                   <div>
-                    <TextInput<AddDriverForm>
+                    <TextInput<EditDriverForm>
                       name="salary"
                       title="Salary (Optional)"
                       placeholder="e.g., 25000"
                       required={false}
                       onlynumber
                       numdes
+                    />
+                  </div>
+                  <div>
+                    <Select<EditDriverForm>
+                      name="status"
+                      title="Status"
+                      placeholder="Select status"
+                      required
+                      options={[
+                        { label: "Active", value: "ACTIVE" },
+                        { label: "Inactive", value: "INACTIVE" },
+                        { label: "On Leave", value: "ON_LEAVE" },
+                        { label: "Suspended", value: "SUSPENDED" },
+                      ]}
                     />
                   </div>
                 </div>
@@ -374,7 +379,7 @@ const AddDriverPage = () => {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <TextInput<AddDriverForm>
+                    <TextInput<EditDriverForm>
                       name="emergencyContactName"
                       title="Contact Name (Optional)"
                       placeholder="Enter contact name"
@@ -382,7 +387,7 @@ const AddDriverPage = () => {
                     />
                   </div>
                   <div>
-                    <TextInput<AddDriverForm>
+                    <TextInput<EditDriverForm>
                       name="emergencyContactNumber"
                       title="Contact Number (Optional)"
                       placeholder="Enter 10-digit number"
@@ -392,7 +397,7 @@ const AddDriverPage = () => {
                     />
                   </div>
                   <div>
-                    <Select<AddDriverForm>
+                    <Select<EditDriverForm>
                       name="emergencyContactRelation"
                       title="Relationship (Optional)"
                       placeholder="Select relationship"
@@ -410,33 +415,11 @@ const AddDriverPage = () => {
                 </div>
               </div>
 
-              {/* Information Note */}
-              <div className="mb-8 bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h4 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
-                  <span className="text-lg">ℹ️</span>
-                  Important Information
-                </h4>
-                <ul className="text-sm text-blue-800 space-y-1 ml-6 list-disc">
-                  <li>
-                    After creating the driver, a user account will be created automatically
-                  </li>
-                  <li>
-                    Login credentials will be: Phone Number & Password (first 4 letters of driver name + @ + last 4 digits of phone)
-                  </li>
-                  <li>
-                    Example: Name &quot;Ramesh Kumar&quot; & Phone &quot;9876543210&quot; → Password: &quot;Rame@3210&quot;
-                  </li>
-                </ul>
-              </div>
-
               {/* Form Actions */}
               <div className="flex justify-end gap-4 mt-8 pt-6 border-t">
-                <Button size="large" onClick={handleReset}>
-                  Reset
-                </Button>
                 <Button
                   size="large"
-                  onClick={() => router.push("/mtadmin/driver")}
+                  onClick={() => router.push(`/mtadmin/driver/${driverId}`)}
                 >
                   Cancel
                 </Button>
@@ -444,11 +427,11 @@ const AddDriverPage = () => {
                   type="primary"
                   size="large"
                   htmlType="submit"
-                  loading={createDriverMutation.isPending}
-                  icon={<AntDesignPlusCircleOutlined className="text-lg" />}
-                  className="!bg-gradient-to-r from-blue-600 to-purple-600"
+                  loading={updateDriverMutation.isPending}
+                  icon={<AntDesignCheckOutlined className="text-lg" />}
+                  className="!bg-gradient-to-r from-green-600 to-teal-600"
                 >
-                  Add Driver
+                  Update Driver
                 </Button>
               </div>
             </form>
@@ -459,4 +442,4 @@ const AddDriverPage = () => {
   );
 };
 
-export default AddDriverPage;
+export default EditDriverPage;

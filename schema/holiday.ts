@@ -7,60 +7,74 @@ import {
   optional,
   union,
   literal,
+  number,
+  minLength,
 } from "valibot";
 
 // Schema for declaring holidays for all cars on multiple dates
 const AllCarsMultipleDatesSchema = object({
   declarationType: literal("ALL_CARS_MULTIPLE_DATES"),
-  carId: optional(string()),
+  carId: optional(number()),
   dateRange: pipe(
     array(string("Select date range")),
-    // minLength(1, "Please select at least one date")
+    minLength(1, "Please select at least one date")
   ),
   slots: optional(array(string())),
-  reason: pipe(string("Enter reason for holiday")),
+  reason: pipe(
+    string("Enter reason for holiday"),
+    minLength(3, "Reason should be at least 3 characters")
+  ),
 });
 
 // Schema for declaring holidays for one car on multiple dates
 const OneCarMultipleDatesSchema = object({
   declarationType: literal("ONE_CAR_MULTIPLE_DATES"),
-  carId: pipe(string("Select a car")),
+  carId: pipe(number("Select a car")),
   dateRange: pipe(
     array(string("Select date range")),
-    // minLength(1, "Please select at least one date")
+    minLength(1, "Please select at least one date")
   ),
   slots: optional(array(string())),
-  reason: pipe(string("Enter reason for holiday")),
+  reason: pipe(
+    string("Enter reason for holiday"),
+    minLength(3, "Reason should be at least 3 characters")
+  ),
 });
 
 // Schema for declaring holidays for all cars on particular slots
 const AllCarsParticularSlotsSchema = object({
   declarationType: literal("ALL_CARS_PARTICULAR_SLOTS"),
-  carId: optional(string()),
+  carId: optional(number()),
   dateRange: pipe(
     array(string("Select date range")),
-    // minLength(1, "Please select at least one date")
+    minLength(1, "Please select at least one date")
   ),
   slots: pipe(
     array(string("Select time slots")),
-    // minLength(1, "Please select at least one slot")
+    minLength(1, "Please select at least one slot")
   ),
-  reason: pipe(string("Enter reason for holiday")),
+  reason: pipe(
+    string("Enter reason for holiday"),
+    minLength(3, "Reason should be at least 3 characters")
+  ),
 });
 
 // Schema for declaring holidays for one car on particular slots
 const OneCarParticularSlotsSchema = object({
   declarationType: literal("ONE_CAR_PARTICULAR_SLOTS"),
-  carId: pipe(string("Select a car")),
+  carId: pipe(number("Select a car")),
   dateRange: pipe(
     array(string("Select date range")),
-    // minLength(1, "Please select at least one date")
+    minLength(1, "Please select at least one date")
   ),
   slots: pipe(
     array(string("Select time slots")),
-    // minLength(1, "Please select at least one slot")
+    minLength(1, "Please select at least one slot")
   ),
-  reason: pipe(string("Enter reason for holiday")),
+  reason: pipe(
+    string("Enter reason for holiday"),
+    minLength(3, "Reason should be at least 3 characters")
+  ),
 });
 
 // Union schema for all declaration types

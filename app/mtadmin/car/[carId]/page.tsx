@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { use } from "react";
 import {
   Card,
   Button,
@@ -8,24 +8,20 @@ import {
   Space,
   Descriptions,
   Table,
-  Modal,
-  Form,
-  Select,
-  Input,
-  DatePicker,
-  message,
+  Spin,
+  Alert,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import {
   AntDesignEditOutlined,
-  IcBaselineCalendarMonth,
+  Fa6SolidArrowLeftLong,
   MaterialSymbolsCheckCircle,
   AntDesignCloseCircleOutlined,
-  Fa6SolidArrowLeftLong,
+  IcBaselineCalendarMonth,
 } from "@/components/icons";
 import { useRouter } from "next/navigation";
-
-const { TextArea } = Input;
+import { useQuery } from "@tanstack/react-query";
+import { getCarById } from "@/services/car.api";
 
 interface BookingRecord {
   key: string;
@@ -47,47 +43,27 @@ interface MaintenanceRecord {
   status: "completed" | "pending" | "scheduled";
 }
 
-const CarDetailPage = ({ params }: { params: { carId: string } }) => {
+const CarDetailPage = ({ params }: { params: Promise<{ carId: string }> }) => {
   const router = useRouter();
-  // In real app, use params.carId to fetch specific car data
-  console.log("Car ID:", params.carId);
-  const [isEditDriverModalOpen, setIsEditDriverModalOpen] = useState(false);
-  const [isMaintenanceModalOpen, setIsMaintenanceModalOpen] = useState(false);
-  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
-  const [form] = Form.useForm();
-  const [maintenanceForm] = Form.useForm();
-  const [statusForm] = Form.useForm();
+  const { carId } = use(params);
+  const numericCarId = parseInt(carId);
 
-  // Mock car data (in real app, fetch based on carId)
-  const [carData] = useState({
-    carId: "CAR-001",
-    carName: "Swift Dzire",
-    model: "VXI",
-    registrationNumber: "DL01AB1234",
-    year: 2023,
-    color: "White",
-    fuelType: "Petrol",
-    status: "available",
-    engineNumber: "K15B-987654",
-    chassisNumber: "MA3ERLF1S00123456",
-    seatingCapacity: 5,
-    transmission: "Manual",
-    insuranceNumber: "INC-2023-12345",
-    insuranceExpiry: "2025-06-15",
-    pucExpiry: "2024-12-30",
-    fitnessExpiry: "2028-05-20",
-    purchaseDate: "2023-01-15",
-    purchaseCost: 850000,
-    currentMileage: 12500,
-    driverName: "Ramesh Kumar",
-    driverId: "DRV-001",
-    driverPhone: "+91 98765 43210",
-    totalBookings: 245,
-    lastService: "2024-10-15",
-    nextService: "2024-12-15",
+  // Fetch car data
+  const { data: carResponse, isLoading, isError, error } = useQuery({
+    queryKey: ["car", numericCarId],
+    queryFn: async () => {
+      if (!numericCarId || isNaN(numericCarId)) {
+        throw new Error("Invalid car ID");
+      }
+      return await getCarById(numericCarId);
+    },
+    enabled: !isNaN(numericCarId),
   });
 
-  const [bookingHistory] = useState<BookingRecord[]>([
+  const carData = carResponse?.data?.getCarById;
+
+  // Mock data for bookings and maintenance (to be replaced with API calls later)
+  const bookingHistory: BookingRecord[] = [
     {
       key: "1",
       bookingId: "BKG-1245",
@@ -133,9 +109,9 @@ const CarDetailPage = ({ params }: { params: { carId: string } }) => {
       status: "upcoming",
       duration: "2 hours",
     },
-  ]);
+  ];
 
-  const [maintenanceHistory] = useState<MaintenanceRecord[]>([
+  const maintenanceHistory: MaintenanceRecord[] = [
     {
       key: "1",
       serviceId: "SRV-1001",
@@ -181,7 +157,7 @@ const CarDetailPage = ({ params }: { params: { carId: string } }) => {
       cost: 3200,
       status: "completed",
     },
-  ]);
+  ];
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
@@ -328,26 +304,26 @@ const CarDetailPage = ({ params }: { params: { carId: string } }) => {
     },
   ];
 
-  const handleEditDriver = (values: Record<string, unknown>) => {
-    console.log("Edit driver:", values);
-    message.success("Driver assignment updated successfully");
-    setIsEditDriverModalOpen(false);
-    form.resetFields();
-  };
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Spin size="large" tip="Loading car details..." />
+      </div>
+    );
+  }
 
-  const handleAddMaintenance = (values: Record<string, unknown>) => {
-    console.log("Add maintenance:", values);
-    message.success("Maintenance record added successfully");
-    setIsMaintenanceModalOpen(false);
-    maintenanceForm.resetFields();
-  };
-
-  const handleUpdateStatus = (values: Record<string, unknown>) => {
-    console.log("Update status:", values);
-    message.success("Car status updated successfully");
-    setIsStatusModalOpen(false);
-    statusForm.resetFields();
-  };
+  if (isError || !carData) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-8">
+        <Alert
+          message="Error Loading Car"
+          description={error?.message || "Failed to load car details"}
+          type="error"
+          showIcon
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -373,21 +349,13 @@ const CarDetailPage = ({ params }: { params: { carId: string } }) => {
             </div>
             <Space size="middle">
               <Button
-                type="default"
-                icon={<AntDesignEditOutlined className="text-lg" />}
-                size="large"
-                onClick={() => setIsStatusModalOpen(true)}
-              >
-                Update Status
-              </Button>
-              <Button
                 type="primary"
                 icon={<AntDesignEditOutlined className="text-lg" />}
                 size="large"
-                onClick={() => setIsEditDriverModalOpen(true)}
+                onClick={() => router.push(`/mtadmin/car/${numericCarId}/edit`)}
                 className="!bg-gradient-to-r from-blue-600 to-purple-600"
               >
-                Edit Driver
+                Edit Car
               </Button>
             </Space>
           </div>
@@ -438,28 +406,22 @@ const CarDetailPage = ({ params }: { params: { carId: string } }) => {
               {carData.currentMileage.toLocaleString("en-IN")} km
             </Descriptions.Item>
             <Descriptions.Item label="Purchase Date">
-              {new Date(carData.purchaseDate).toLocaleDateString("en-IN")}
+              {carData.purchaseDate ? new Date(carData.purchaseDate).toLocaleDateString("en-IN") : "N/A"}
             </Descriptions.Item>
             <Descriptions.Item label="Purchase Cost">
-              ₹{carData.purchaseCost.toLocaleString("en-IN")}
+              ₹{carData.purchaseCost?.toLocaleString("en-IN") || "N/A"}
             </Descriptions.Item>
           </Descriptions>
         </Card>
 
         {/* Driver Details */}
-        <Card title="Assigned Driver"  className="shadow-sm">
-          {carData.driverName ? (
-            <Descriptions bordered column={{ xs: 1, sm: 2, md: 3 }}>
-              <Descriptions.Item label="Driver Name">
-                <span className="font-semibold">{carData.driverName}</span>
-              </Descriptions.Item>
+        <Card title="Assigned Driver" className="shadow-sm">
+          {carData.assignedDriverId ? (
+            <Descriptions bordered column={{ xs: 1, sm: 2}}>
               <Descriptions.Item label="Driver ID">
-                {carData.driverId}
+                {carData.assignedDriverId}
               </Descriptions.Item>
-              <Descriptions.Item label="Phone">
-                {carData.driverPhone}
-              </Descriptions.Item>
-              <Descriptions.Item label="Total Bookings" span={3}>
+              <Descriptions.Item label="Total Bookings">
                 <span className="text-lg font-semibold text-blue-600">
                   {carData.totalBookings}
                 </span>
@@ -468,12 +430,6 @@ const CarDetailPage = ({ params }: { params: { carId: string } }) => {
           ) : (
             <div className="text-center py-8">
               <p className="text-gray-400 text-lg mb-4">No driver assigned</p>
-              <Button
-                type="primary"
-                onClick={() => setIsEditDriverModalOpen(true)}
-              >
-                Assign Driver
-              </Button>
             </div>
           )}
         </Card>
@@ -491,34 +447,34 @@ const CarDetailPage = ({ params }: { params: { carId: string } }) => {
             <Descriptions.Item label="Insurance Expiry">
               <span
                 className={
-                  new Date(carData.insuranceExpiry) < new Date()
+                  carData.insuranceExpiry && new Date(carData.insuranceExpiry) < new Date()
                     ? "text-red-600 font-semibold"
                     : ""
                 }
               >
-                {new Date(carData.insuranceExpiry).toLocaleDateString("en-IN")}
+                {carData.insuranceExpiry ? new Date(carData.insuranceExpiry).toLocaleDateString("en-IN") : "N/A"}
               </span>
             </Descriptions.Item>
             <Descriptions.Item label="PUC Expiry">
               <span
                 className={
-                  new Date(carData.pucExpiry) < new Date()
+                  carData.pucExpiry && new Date(carData.pucExpiry) < new Date()
                     ? "text-red-600 font-semibold"
                     : ""
                 }
               >
-                {new Date(carData.pucExpiry).toLocaleDateString("en-IN")}
+                {carData.pucExpiry ? new Date(carData.pucExpiry).toLocaleDateString("en-IN") : "N/A"}
               </span>
             </Descriptions.Item>
             <Descriptions.Item label="Fitness Expiry">
-              {new Date(carData.fitnessExpiry).toLocaleDateString("en-IN")}
+              {carData.fitnessExpiry ? new Date(carData.fitnessExpiry).toLocaleDateString("en-IN") : "N/A"}
             </Descriptions.Item>
             <Descriptions.Item label="Last Service">
-              {new Date(carData.lastService).toLocaleDateString("en-IN")}
+              {carData.lastServiceDate ? new Date(carData.lastServiceDate).toLocaleDateString("en-IN") : "N/A"}
             </Descriptions.Item>
             <Descriptions.Item label="Next Service">
               <span className="font-semibold text-orange-600">
-                {new Date(carData.nextService).toLocaleDateString("en-IN")}
+                {carData.nextServiceDate ? new Date(carData.nextServiceDate).toLocaleDateString("en-IN") : "N/A"}
               </span>
             </Descriptions.Item>
           </Descriptions>
@@ -527,16 +483,7 @@ const CarDetailPage = ({ params }: { params: { carId: string } }) => {
         {/* Maintenance History */}
         <Card
           title="Maintenance History"
-          
           className="shadow-sm"
-          extra={
-            <Button
-              type="primary"
-              onClick={() => setIsMaintenanceModalOpen(true)}
-            >
-              Add Maintenance Record
-            </Button>
-          }
         >
           <Table
             columns={maintenanceColumns}
@@ -565,210 +512,6 @@ const CarDetailPage = ({ params }: { params: { carId: string } }) => {
           />
         </Card>
       </div>
-
-      {/* Edit Driver Modal */}
-      <Modal
-        title="Edit Driver Assignment"
-        open={isEditDriverModalOpen}
-        onCancel={() => {
-          setIsEditDriverModalOpen(false);
-          form.resetFields();
-        }}
-        footer={null}
-        width={500}
-      >
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleEditDriver}
-          initialValues={{
-            driverId: carData.driverId,
-          }}
-        >
-          <Form.Item
-            name="driverId"
-            label="Select Driver"
-            rules={[{ required: true, message: "Please select a driver" }]}
-          >
-            <Select
-              placeholder="Select driver"
-              size="large"
-              showSearch
-              options={[
-                { label: "Ramesh Kumar (DRV-001)", value: "DRV-001" },
-                { label: "Suresh Sharma (DRV-002)", value: "DRV-002" },
-                { label: "Vikram Singh (DRV-003)", value: "DRV-003" },
-                { label: "Ajay Verma (DRV-004)", value: "DRV-004" },
-                { label: "Unassign Driver", value: null },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item name="notes" label="Notes (Optional)">
-            <TextArea rows={3} placeholder="Any additional notes..." />
-          </Form.Item>
-          <Form.Item className="mb-0">
-            <Space className="w-full justify-end">
-              <Button
-                onClick={() => {
-                  setIsEditDriverModalOpen(false);
-                  form.resetFields();
-                }}
-              >
-                Cancel
-              </Button>
-              <Button type="primary" htmlType="submit">
-                Update Driver
-              </Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      {/* Add Maintenance Modal */}
-      <Modal
-        title="Add Maintenance Record"
-        open={isMaintenanceModalOpen}
-        onCancel={() => {
-          setIsMaintenanceModalOpen(false);
-          maintenanceForm.resetFields();
-        }}
-        footer={null}
-        width={600}
-      >
-        <Form
-          form={maintenanceForm}
-          layout="vertical"
-          onFinish={handleAddMaintenance}
-        >
-          <Form.Item
-            name="type"
-            label="Service Type"
-            rules={[
-              { required: true, message: "Please select service type" },
-            ]}
-          >
-            <Select
-              placeholder="Select service type"
-              size="large"
-              options={[
-                { label: "Regular Service", value: "Regular Service" },
-                { label: "Tire Replacement", value: "Tire Replacement" },
-                { label: "AC Service", value: "AC Service" },
-                { label: "Battery Replacement", value: "Battery Replacement" },
-                { label: "Brake Service", value: "Brake Service" },
-                { label: "Other", value: "Other" },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item
-            name="date"
-            label="Service Date"
-            rules={[{ required: true, message: "Please select date" }]}
-          >
-            <DatePicker size="large" className="w-full" />
-          </Form.Item>
-          <Form.Item
-            name="description"
-            label="Description"
-            rules={[{ required: true, message: "Please enter description" }]}
-          >
-            <TextArea rows={3} placeholder="Service details..." />
-          </Form.Item>
-          <Form.Item
-            name="cost"
-            label="Cost (₹)"
-            rules={[{ required: true, message: "Please enter cost" }]}
-          >
-            <Input type="number" size="large" placeholder="Enter cost" />
-          </Form.Item>
-          <Form.Item
-            name="status"
-            label="Status"
-            rules={[{ required: true, message: "Please select status" }]}
-          >
-            <Select
-              placeholder="Select status"
-              size="large"
-              options={[
-                { label: "Completed", value: "completed" },
-                { label: "Pending", value: "pending" },
-                { label: "Scheduled", value: "scheduled" },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item className="mb-0">
-            <Space className="w-full justify-end">
-              <Button
-                onClick={() => {
-                  setIsMaintenanceModalOpen(false);
-                  maintenanceForm.resetFields();
-                }}
-              >
-                Cancel
-              </Button>
-              <Button type="primary" htmlType="submit">
-                Add Record
-              </Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      {/* Update Status Modal */}
-      <Modal
-        title="Update Car Status"
-        open={isStatusModalOpen}
-        onCancel={() => {
-          setIsStatusModalOpen(false);
-          statusForm.resetFields();
-        }}
-        footer={null}
-        width={500}
-      >
-        <Form
-          form={statusForm}
-          layout="vertical"
-          onFinish={handleUpdateStatus}
-          initialValues={{
-            status: carData.status,
-          }}
-        >
-          <Form.Item
-            name="status"
-            label="Select Status"
-            rules={[{ required: true, message: "Please select status" }]}
-          >
-            <Select
-              placeholder="Select status"
-              size="large"
-              options={[
-                { label: "Available", value: "available" },
-                { label: "In Use", value: "in-use" },
-                { label: "Maintenance", value: "maintenance" },
-                { label: "Inactive", value: "inactive" },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item name="reason" label="Reason (Optional)">
-            <TextArea rows={3} placeholder="Reason for status change..." />
-          </Form.Item>
-          <Form.Item className="mb-0">
-            <Space className="w-full justify-end">
-              <Button
-                onClick={() => {
-                  setIsStatusModalOpen(false);
-                  statusForm.resetFields();
-                }}
-              >
-                Cancel
-              </Button>
-              <Button type="primary" htmlType="submit">
-                Update Status
-              </Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Modal>
     </div>
   );
 };

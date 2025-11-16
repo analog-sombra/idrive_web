@@ -2,8 +2,7 @@
 import { FormProvider, useForm } from "react-hook-form";
 import { onFormError } from "@/utils/methods";
 import { useRouter } from "next/navigation";
-import { useMutation } from "@tanstack/react-query";
-import { ApiCall } from "@/services/api";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "react-toastify";
 import { useState } from "react";
 import { DateRangePicker } from "./inputfields/daterangepicker";
@@ -16,6 +15,9 @@ import {
   CheckCircleOutlined,
   LoadingOutlined,
 } from "@ant-design/icons";
+import { getCookie } from "cookies-next";
+import { getPaginatedCars, type Car } from "@/services/car.api";
+import { createHoliday } from "@/services/holiday.api";
 
 type DeclarationType =
   | "ALL_CARS_MULTIPLE_DATES"
@@ -33,10 +35,37 @@ interface FormData {
 
 const HolidayDeclarationPage = () => {
   const router = useRouter();
+  const schoolId: number = parseInt(getCookie("school")?.toString() || "0");
   const [declarationType, setDeclarationType] =
     useState<DeclarationType>("ALL_CARS_MULTIPLE_DATES");
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingData, setPendingData] = useState<FormData | null>(null);
+
+  // Fetch cars for the school
+  const { data: carsResponse } = useQuery({
+    queryKey: ["cars", schoolId],
+    queryFn: () =>
+      getPaginatedCars({
+        searchPaginationInput: {
+          skip: 0,
+          take: 1000, // Get all cars
+          search: "",
+        },
+        whereSearchInput: {
+          schoolId: schoolId,
+          status: "AVAILABLE",
+        },
+      }),
+    enabled: schoolId > 0,
+  });
+
+  const cars = carsResponse?.data?.getPaginatedCar?.data || [];
+
+  // Convert cars to options for dropdown
+  const carOptions: OptionValue[] = cars.map((car: Car) => ({
+    label: `${car.carName} ${car.model} (${car.registrationNumber})`,
+    value: car.id.toString(),
+  }));
 
   // Preset reason templates
   const reasonTemplates = [
@@ -221,62 +250,47 @@ const HolidayDeclarationPage = () => {
     return true;
   };
 
-  type HolidayResponse = {
-    id: string;
-    message: string;
-  };
-
-  const createHoliday = useMutation({
+  const createHolidayMutation = useMutation({
     mutationKey: ["createHoliday"],
     mutationFn: async (data: FormData) => {
-      const response = await ApiCall({
-        query: `mutation CreateHoliday($inputType: CreateHolidayInput!) {
-            createHoliday(inputType: $inputType) {
-              id,
-              message
-            }
-          }`,
-        variables: {
-          inputType: {
-            declarationType: data.declarationType,
-            carId: data.carId,
-            dateRange: data.dateRange,
-            slots: data.slots,
-            reason: data.reason,
-          },
-        },
+      if (!schoolId) {
+        throw new Error("School ID not found. Please login again.");
+      }
+
+      // Convert dateRange to startDate and endDate
+      const startDate = data.dateRange[0];
+      const endDate = data.dateRange.length > 1 ? data.dateRange[1] : data.dateRange[0];
+
+      // Convert slots array to JSON string, or undefined if empty
+      const slotsJson = data.slots && data.slots.length > 0 
+        ? JSON.stringify(data.slots) 
+        : undefined;
+
+      const response = await createHoliday({
+        schoolId: schoolId,
+        declarationType: data.declarationType,
+        carId: data.carId ? parseInt(data.carId) : undefined,
+        startDate: startDate,
+        endDate: endDate,
+        slots: slotsJson,
+        reason: data.reason,
       });
 
       if (!response.status) {
-        throw new Error(response.message);
+        throw new Error(response.message || "Failed to declare holiday");
       }
 
-      if (!(response.data as Record<string, unknown>)["createHoliday"]) {
-        throw new Error("Value not found in response");
-      }
-      return (response.data as Record<string, unknown>)[
-        "createHoliday"
-      ] as HolidayResponse;
+      return response;
     },
-
     onSuccess: () => {
       toast.success("Holiday declared successfully!");
       methods.reset();
-      router.push("/mtadmin");
+      router.push("/mtadmin/holiday");
     },
     onError: (error: Error) => {
-      toast.error(error.message);
+      toast.error(error.message || "Failed to declare holiday. Please try again.");
     },
   });
-
-  // Sample car options - replace with actual API call
-  const carOptions: OptionValue[] = [
-    { label: "Car 1 - Toyota Camry (TN01AB1234)", value: "car1" },
-    { label: "Car 2 - Honda Civic (TN02CD5678)", value: "car2" },
-    { label: "Car 3 - Hyundai Creta (TN03EF9012)", value: "car3" },
-    { label: "Car 4 - Maruti Swift (TN04GH3456)", value: "car4" },
-    { label: "Car 5 - Mahindra XUV (TN05IJ7890)", value: "car5" },
-  ];
 
   const onSubmit = async (data: FormData) => {
     if (validateForm(data)) {
@@ -287,7 +301,7 @@ const HolidayDeclarationPage = () => {
 
   const handleConfirmSubmit = () => {
     if (pendingData) {
-      createHoliday.mutate(pendingData);
+      createHolidayMutation.mutate(pendingData);
       setShowConfirmModal(false);
       setPendingData(null);
     }
@@ -583,11 +597,11 @@ const HolidayDeclarationPage = () => {
               <button
                 type="submit"
                 disabled={
-                  methods.formState.isSubmitting || createHoliday.isPending || progress < 100
+                  methods.formState.isSubmitting || createHolidayMutation.isPending || progress < 100
                 }
                 className="w-full px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-lg shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-[1.02]"
               >
-                {createHoliday.isPending ? (
+                {createHolidayMutation.isPending ? (
                   <span className="flex items-center justify-center gap-2">
                     <LoadingOutlined className="animate-spin" />
                     Declaring Holiday...
@@ -619,7 +633,7 @@ const HolidayDeclarationPage = () => {
             okButtonProps={{ 
               danger: true, 
               size: "large",
-              loading: createHoliday.isPending 
+              loading: createHolidayMutation.isPending 
             }}
             cancelButtonProps={{ size: "large" }}
             width={600}

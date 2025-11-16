@@ -1,47 +1,117 @@
 "use client";
 
-import { useState } from "react";
-import {
-  Card,
-  Form,
-  Input,
-  Button,
-  Select,
-  DatePicker,
-  Space,
-  InputNumber,
-  message,
-  Row,
-  Col,
-} from "antd";
+import { FormProvider, useForm } from "react-hook-form";
+import { valibotResolver } from "@hookform/resolvers/valibot";
+import { onFormError } from "@/utils/methods";
+import { useRouter } from "next/navigation";
+import { useMutation } from "@tanstack/react-query";
+import { toast } from "react-toastify";
+import { AddCourseForm, AddCourseSchema } from "@/schema/addcourse";
+import { TextInput } from "@/components/form/inputfields/textinput";
+import { Select } from "@/components/form/inputfields/select";
+import { TaxtAreaInput } from "@/components/form/inputfields/textareainput";
+import { Button, Card, Modal } from "antd";
 import {
   Fa6SolidArrowLeftLong,
   AntDesignPlusCircleOutlined,
 } from "@/components/icons";
-import { useRouter } from "next/navigation";
-
-const { TextArea } = Input;
+import { getCookie } from "cookies-next";
+import { createCourse } from "@/services/course.api";
 
 const AddCoursePage = () => {
   const router = useRouter();
-  const [form] = Form.useForm();
-  const [loading, setLoading] = useState(false);
+  const schoolId: number = parseInt(getCookie("school")?.toString() || "0");
 
-  const handleSubmit = (values: Record<string, unknown>) => {
-    setLoading(true);
-    console.log("Form values:", values);
+  const methods = useForm<AddCourseForm>({
+    resolver: valibotResolver(AddCourseSchema),
+  });
 
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
-      message.success("Course added successfully!");
-      router.push("/mtadmin/course");
-    }, 1500);
+  const createCourseMutation = useMutation({
+    mutationKey: ["createCourse"],
+    mutationFn: async (data: AddCourseForm) => {
+      if (!schoolId) {
+        throw new Error("School ID not found. Please login again.");
+      }
+
+      // Generate courseId: CRS-{schoolId}-{timestamp}
+      const courseId = `CRS-${schoolId}-${Date.now()}`;
+
+      // Create course
+      const courseResponse = await createCourse({
+        schoolId: schoolId,
+        courseId: courseId,
+        courseName: data.courseName,
+        courseType: data.courseType as "BEGINNER" | "INTERMEDIATE" | "ADVANCED" | "REFRESHER",
+        hoursPerDay: parseInt(data.hoursPerDay),
+        courseDays: parseInt(data.courseDays),
+        price: parseFloat(data.price),
+        description: data.description,
+        syllabus: data.syllabus,
+        requirements: data.requirements,
+      });
+
+      if (!courseResponse.status) {
+        throw new Error(courseResponse.message || "Failed to create course");
+      }
+
+      return { course: courseResponse.data };
+    },
+    onSuccess: (response) => {
+      if (response.course?.createCourse) {
+        const course = response.course.createCourse;
+        Modal.success({
+          title: "Course Created Successfully!",
+          content: (
+            <div className="space-y-2">
+              <p><strong>Course Name:</strong> {course.courseName}</p>
+              <p><strong>Course Type:</strong> {course.courseType}</p>
+              <p><strong>Hours Per Day:</strong> {course.hoursPerDay} min</p>
+              <p><strong>Course Days:</strong> {course.courseDays} days</p>
+              <p><strong>Price:</strong> ₹{course.price}</p>
+            </div>
+          ),
+          onOk: () => router.push("/mtadmin/course"),
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to create course. Please try again.");
+    },
+  });
+
+  const onSubmit = (data: AddCourseForm) => {
+    const hoursPerDay = parseInt(data.hoursPerDay);
+    const courseDays = parseInt(data.courseDays);
+    const durationInDays = Math.ceil((courseDays * hoursPerDay) / 60);
+    
+    Modal.confirm({
+      title: "Confirm Course Creation",
+      content: (
+        <div>
+          <p><strong>Course Name:</strong> {data.courseName}</p>
+          <p><strong>Course Type:</strong> {data.courseType}</p>
+          <p><strong>Hours Per Day:</strong> {hoursPerDay} minutes</p>
+          <p><strong>Course Days:</strong> {courseDays} days</p>
+          <p><strong>Total Duration:</strong> {durationInDays} days</p>
+          <p><strong>Price:</strong> ₹{data.price}</p>
+          <br />
+          <p>Are you sure you want to create this course?</p>
+        </div>
+      ),
+      okText: "Yes, Create Course",
+      cancelText: "Cancel",
+      onOk: () => {
+        createCourseMutation.mutate(data);
+      },
+      okButtonProps: {
+        className: "!bg-green-600",
+      },
+    });
   };
 
   const handleReset = () => {
-    form.resetFields();
-    message.info("Form reset");
+    methods.reset();
+    toast.info("Form reset");
   };
 
   return (
@@ -57,11 +127,9 @@ const AddCoursePage = () => {
               onClick={() => router.push("/mtadmin/course")}
             />
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                Add New Course
-              </h1>
+              <h1 className="text-2xl font-bold text-gray-900">Add New Course</h1>
               <p className="text-gray-600 mt-1 text-sm">
-                Create a new driving course with all details
+                Fill in the details to create a new course
               </p>
             </div>
           </div>
@@ -69,315 +137,125 @@ const AddCoursePage = () => {
       </div>
 
       <div className="px-8 py-6 max-w-5xl">
-        <Card  className="shadow-sm">
-          <Form
-            form={form}
-            layout="vertical"
-            onFinish={handleSubmit}
-            autoComplete="off"
-            initialValues={{
-              status: "upcoming",
-              courseType: "beginner",
-            }}
-          >
-            {/* Basic Course Information */}
-            <div className="mb-8">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
-                Basic Information
-              </h3>
-              <Row gutter={16}>
-                <Col xs={24} sm={12}>
-                  <Form.Item
-                    name="courseName"
-                    label="Course Name"
-                    rules={[
-                      { required: true, message: "Please enter course name" },
-                    ]}
-                  >
-                    <Input
-                      size="large"
-                      placeholder="e.g., Basic Driving Course"
+        <Card className="shadow-sm">
+          <FormProvider {...methods}>
+            <form onSubmit={methods.handleSubmit(onSubmit, onFormError)}>
+              {/* Basic Information */}
+              <div className="mb-8">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
+                  Basic Information
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <TextInput<AddCourseForm>
+                      name="courseName"
+                      title="Course Name"
+                      placeholder="Enter course name"
+                      required
                     />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} sm={12}>
-                  <Form.Item
-                    name="courseType"
-                    label="Course Type"
-                    rules={[
-                      { required: true, message: "Please select course type" },
-                    ]}
-                  >
-                    <Select
-                      size="large"
+                  </div>
+                  <div>
+                    <Select<AddCourseForm>
+                      name="courseType"
+                      title="Course Type"
                       placeholder="Select course type"
+                      required
                       options={[
-                        { label: "Beginner", value: "beginner" },
-                        { label: "Intermediate", value: "intermediate" },
-                        { label: "Advanced", value: "advanced" },
-                        { label: "Refresher", value: "refresher" },
+                        { label: "Beginner", value: "BEGINNER" },
+                        { label: "Intermediate", value: "INTERMEDIATE" },
+                        { label: "Advanced", value: "ADVANCED" },
+                        { label: "Refresher", value: "REFRESHER" },
                       ]}
                     />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Row gutter={16}>
-                <Col xs={24} sm={12} md={8}>
-                  <Form.Item
-                    name="duration"
-                    label="Duration"
-                    rules={[
-                      { required: true, message: "Please enter duration" },
-                    ]}
-                  >
-                    <Input size="large" placeholder="e.g., 30 days" />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} sm={12} md={8}>
-                  <Form.Item
-                    name="totalHours"
-                    label="Total Hours"
-                    rules={[
-                      {
-                        required: true,
-                        message: "Please enter total hours",
-                      },
-                    ]}
-                  >
-                    <InputNumber
-                      size="large"
-                      placeholder="e.g., 20"
-                      min={1}
-                      className="w-full"
-                    />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} sm={12} md={8}>
-                  <Form.Item
-                    name="totalSessions"
-                    label="Total Sessions"
-                    rules={[
-                      {
-                        required: true,
-                        message: "Please enter total sessions",
-                      },
-                    ]}
-                  >
-                    <InputNumber
-                      size="large"
-                      placeholder="e.g., 10"
-                      min={1}
-                      className="w-full"
-                    />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Row gutter={16}>
-                <Col xs={24} sm={12}>
-                  <Form.Item
-                    name="price"
-                    label="Course Price (₹)"
-                    rules={[{ required: true, message: "Please enter price" }]}
-                  >
-                    <InputNumber
-                      size="large"
-                      placeholder="e.g., 8500"
-                      min={0}
-                      className="w-full"
-                    />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} sm={12}>
-                  <Form.Item
-                    name="maxCapacity"
-                    label="Maximum Capacity"
-                    rules={[
-                      {
-                        required: true,
-                        message: "Please enter max capacity",
-                      },
-                    ]}
-                  >
-                    <InputNumber
-                      size="large"
-                      placeholder="e.g., 50"
-                      min={1}
-                      className="w-full"
-                    />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Row gutter={16}>
-                <Col xs={24} sm={12}>
-                  <Form.Item
-                    name="startDate"
-                    label="Start Date"
-                    rules={[
-                      {
-                        required: true,
-                        message: "Please select start date",
-                      },
-                    ]}
-                  >
-                    <DatePicker size="large" className="w-full" />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} sm={12}>
-                  <Form.Item
-                    name="endDate"
-                    label="End Date"
-                    rules={[
-                      {
-                        required: true,
-                        message: "Please select end date",
-                      },
-                    ]}
-                  >
-                    <DatePicker size="large" className="w-full" />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Row gutter={16}>
-                <Col xs={24} sm={12}>
-                  <Form.Item
-                    name="status"
-                    label="Status"
-                    rules={[
-                      { required: true, message: "Please select status" },
-                    ]}
-                  >
-                    <Select
-                      size="large"
-                      placeholder="Select status"
+                  </div>
+                  <div>
+                    <Select<AddCourseForm>
+                      name="hoursPerDay"
+                      title="Hours Per Day"
+                      placeholder="Select hours per day"
+                      required
                       options={[
-                        { label: "Active", value: "active" },
-                        { label: "Inactive", value: "inactive" },
-                        { label: "Upcoming", value: "upcoming" },
-                        { label: "Archived", value: "archived" },
+                        { label: "30 minutes", value: "30" },
+                        { label: "60 minutes", value: "60" },
                       ]}
                     />
-                  </Form.Item>
-                </Col>
-              </Row>
-            </div>
-
-            {/* Instructor Assignment */}
-            <div className="mb-8">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
-                Instructor Assignment
-              </h3>
-              <Row gutter={16}>
-                <Col xs={24} sm={12}>
-                  <Form.Item
-                    name="instructorId"
-                    label="Primary Instructor"
-                    rules={[
-                      {
-                        required: true,
-                        message: "Please select instructor",
-                      },
-                    ]}
-                  >
-                    <Select
-                      size="large"
-                      placeholder="Select instructor"
-                      showSearch
-                      options={[
-                        { label: "Ramesh Kumar (DRV-001)", value: "DRV-001" },
-                        { label: "Suresh Sharma (DRV-002)", value: "DRV-002" },
-                        { label: "Vikram Singh (DRV-003)", value: "DRV-003" },
-                        { label: "Ajay Verma (DRV-004)", value: "DRV-004" },
-                      ]}
+                  </div>
+                  <div>
+                    <TextInput<AddCourseForm>
+                      name="courseDays"
+                      title="Course Days"
+                      placeholder="e.g., 30"
+                      required
+                      onlynumber
                     />
-                  </Form.Item>
-                </Col>
-              </Row>
-            </div>
-
-            {/* Course Content */}
-            <div className="mb-8">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
-                Course Content
-              </h3>
-              <Form.Item
-                name="description"
-                label="Course Description"
-                rules={[
-                  { required: true, message: "Please enter description" },
-                ]}
-              >
-                <TextArea
-                  rows={4}
-                  placeholder="Provide a detailed description of the course..."
-                />
-              </Form.Item>
-
-              <Form.Item name="syllabus" label="Course Syllabus">
-                <TextArea
-                  rows={6}
-                  placeholder="Enter syllabus topics (one per line)&#10;e.g.,&#10;Introduction to vehicle controls&#10;Basic steering and gear handling&#10;Traffic rules and road signs"
-                />
-              </Form.Item>
-
-              <Form.Item name="requirements" label="Requirements">
-                <TextArea
-                  rows={3}
-                  placeholder="Prerequisites or requirements for enrollment (e.g., Valid learner's license required)"
-                />
-              </Form.Item>
-            </div>
-
-            {/* Session Planning */}
-            <div className="mb-8">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
-                Session Planning (Optional)
-              </h3>
-              <p className="text-sm text-gray-600 mb-4">
-                You can add individual sessions after creating the course
-              </p>
-              <Row gutter={16}>
-                <Col xs={24} sm={12}>
-                  <Form.Item name="sessionDuration" label="Session Duration">
-                    <Input size="large" placeholder="e.g., 2 hours" />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} sm={12}>
-                  <Form.Item name="sessionFrequency" label="Session Frequency">
-                    <Select
-                      size="large"
-                      placeholder="Select frequency"
-                      options={[
-                        { label: "Daily", value: "daily" },
-                        { label: "Alternate Days", value: "alternate" },
-                        { label: "Weekly", value: "weekly" },
-                        { label: "Custom", value: "custom" },
-                      ]}
+                  </div>
+                  <div>
+                    <TextInput<AddCourseForm>
+                      name="price"
+                      title="Price (₹)"
+                      placeholder="e.g., 5000"
+                      required
+                      onlynumber
+                      numdes
                     />
-                  </Form.Item>
-                </Col>
-              </Row>
+                  </div>
+                </div>
+              </div>
+
+              {/* Course Details */}
+              <div className="mb-8">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
+                  Course Details
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <TaxtAreaInput<AddCourseForm>
+                      name="description"
+                      title="Description"
+                      placeholder="Enter detailed course description"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <TaxtAreaInput<AddCourseForm>
+                      name="syllabus"
+                      title="Syllabus (Optional)"
+                      placeholder="Enter course syllabus (topics covered, modules, etc.)"
+                      required={false}
+                    />
+                  </div>
+                  <div>
+                    <TaxtAreaInput<AddCourseForm>
+                      name="requirements"
+                      title="Requirements (Optional)"
+                      placeholder="Enter course requirements (prerequisites, materials needed, etc.)"
+                      required={false}
+                    />
+                  </div>
+                </div>
+              </div>
+
+            {/* Information Note */}
+            <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h4 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                <span className="text-lg">ℹ️</span>
+                Important Information
+              </h4>
+              <ul className="text-sm text-blue-800 space-y-1 ml-6 list-disc">
+                <li>
+                  Course ID will be generated automatically based on your school
+                </li>
+                <li>
+                  The course will be created with ACTIVE status by default
+                </li>
+                <li>
+                  You can edit course details and update status later from the course list
+                </li>
+              </ul>
             </div>
 
-            {/* Additional Information */}
-            <div className="mb-8">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
-                Additional Information
-              </h3>
-              <Form.Item name="notes" label="Notes (Optional)">
-                <TextArea
-                  rows={3}
-                  placeholder="Any additional notes or information about the course..."
-                />
-              </Form.Item>
-            </div>
-
-            {/* Form Actions */}
-            <Form.Item className="mb-0">
-              <Space size="middle" className="w-full justify-end">
+              {/* Form Actions */}
+              <div className="flex justify-end gap-4 mt-8 pt-6 border-t">
                 <Button size="large" onClick={handleReset}>
                   Reset
                 </Button>
@@ -391,15 +269,15 @@ const AddCoursePage = () => {
                   type="primary"
                   size="large"
                   htmlType="submit"
-                  loading={loading}
+                  loading={createCourseMutation.isPending}
                   icon={<AntDesignPlusCircleOutlined className="text-lg" />}
                   className="!bg-gradient-to-r from-blue-600 to-purple-600"
                 >
                   Add Course
                 </Button>
-              </Space>
-            </Form.Item>
-          </Form>
+              </div>
+            </form>
+          </FormProvider>
         </Card>
       </div>
     </div>

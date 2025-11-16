@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState, use } from "react";
 import {
   Card,
   Button,
@@ -14,6 +14,7 @@ import {
   Input,
   message,
   Statistic,
+  Spin,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import {
@@ -26,6 +27,8 @@ import {
   Fa6RegularClock,
 } from "@/components/icons";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { getDriverWithHistory, type LeaveHistory, type SalaryHistory } from "@/services/driver.api";
 
 const { TextArea } = Input;
 
@@ -41,61 +44,48 @@ interface BookingData {
   amount: number;
 }
 
-interface LeaveData {
-  key: string;
-  leaveId: string;
-  fromDate: string;
-  toDate: string;
-  reason: string;
-  status: "approved" | "pending" | "rejected";
-}
-
-interface SalaryData {
-  key: string;
-  month: string;
-  basicSalary: number;
-  bonus: number;
-  deductions: number;
-  netSalary: number;
-  paidOn: string;
-  status: "paid" | "pending";
-}
-
-const DriverDetailPage = ({ params }: { params: { driverId: string } }) => {
+const DriverDetailPage = ({ params }: { params: Promise<{ driverId: string }> }) => {
   const router = useRouter();
   const [bonusModalVisible, setBonusModalVisible] = useState(false);
   const [form] = Form.useForm();
+  
+  // Unwrap params (Next.js 15+ async params)
+  const { driverId } = use(params);
 
-  // Mock driver data
-  const driverData = {
-    driverId: params.driverId,
-    name: "Ramesh Kumar",
-    email: "ramesh.kumar@idrive.com",
-    mobile: "9876543210",
-    address: "House No. 456, Sector 22, Rohini, New Delhi - 110086",
-    licenseNumber: "DL-0320190012345",
-    licenseIssueDate: "2019-03-15",
-    licenseExpiryDate: "2039-03-14",
-    licenseType: "LMV (Light Motor Vehicle)",
-    dateOfBirth: "1985-05-15",
-    bloodGroup: "B+",
-    gender: "Male",
-    experience: 8,
-    salary: 25000,
-    joiningDate: "2023-01-15",
-    status: "active",
-    rating: 4.8,
-    totalBookings: 245,
-    completedBookings: 238,
-    cancelledBookings: 5,
-    pendingBookings: 2,
-    emergencyContactName: "Sunita Kumar",
-    emergencyContactNumber: "9876543299",
-    emergencyContactRelation: "Spouse",
-  };
+  // Fetch driver with history from API
+  console.log("Fetching driver with ID:", driverId);
+  const { data: driverResponse, isLoading } = useQuery({
+    queryKey: ["driver", driverId],
+    queryFn: () => getDriverWithHistory(parseInt(driverId)),
+  });
 
-  // Mock booking history
-  const [bookings] = useState<BookingData[]>([
+  const driverData = driverResponse?.data?.getDriverById;
+  const leaveHistoryData = driverData?.leaveHistory || [];
+  const salaryHistoryData = driverData?.salaryHistory || [];
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Spin size="large" />
+      </div>
+    );
+  }
+
+  if (!driverData) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Card className="text-center">
+          <p className="text-gray-600 mb-4">Driver not found</p>
+          <Button onClick={() => router.push("/mtadmin/driver")}>
+            Back to Drivers
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
+  // Mock booking history (keeping this as bookings aren't part of driver API yet)
+  const bookings: BookingData[] = [
     {
       key: "1",
       bookingId: "BK-2024-101",
@@ -151,69 +141,7 @@ const DriverDetailPage = ({ params }: { params: { driverId: string } }) => {
       status: "cancelled",
       amount: 3500,
     },
-  ]);
-
-  // Mock leave history
-  const [leaves] = useState<LeaveData[]>([
-    {
-      key: "1",
-      leaveId: "LV-001",
-      fromDate: "2024-12-20",
-      toDate: "2024-12-22",
-      reason: "Personal work",
-      status: "pending",
-    },
-    {
-      key: "2",
-      leaveId: "LV-002",
-      fromDate: "2024-10-05",
-      toDate: "2024-10-07",
-      reason: "Family function",
-      status: "approved",
-    },
-    {
-      key: "3",
-      leaveId: "LV-003",
-      fromDate: "2024-08-15",
-      toDate: "2024-08-15",
-      reason: "Medical checkup",
-      status: "approved",
-    },
-  ]);
-
-  // Mock salary history
-  const [salaryHistory] = useState<SalaryData[]>([
-    {
-      key: "1",
-      month: "October 2024",
-      basicSalary: 25000,
-      bonus: 2000,
-      deductions: 500,
-      netSalary: 26500,
-      paidOn: "2024-11-01",
-      status: "paid",
-    },
-    {
-      key: "2",
-      month: "September 2024",
-      basicSalary: 25000,
-      bonus: 1500,
-      deductions: 0,
-      netSalary: 26500,
-      paidOn: "2024-10-01",
-      status: "paid",
-    },
-    {
-      key: "3",
-      month: "August 2024",
-      basicSalary: 25000,
-      bonus: 0,
-      deductions: 1000,
-      netSalary: 24000,
-      paidOn: "2024-09-01",
-      status: "paid",
-    },
-  ]);
+  ];
 
   const bookingColumns: ColumnsType<BookingData> = [
     {
@@ -299,12 +227,19 @@ const DriverDetailPage = ({ params }: { params: { driverId: string } }) => {
     },
   ];
 
-  const leaveColumns: ColumnsType<LeaveData> = [
+  const leaveColumns: ColumnsType<LeaveHistory> = [
     {
       title: "Leave ID",
-      dataIndex: "leaveId",
-      key: "leaveId",
+      dataIndex: "id",
+      key: "id",
       width: 120,
+      render: (id) => `LV-${id}`,
+    },
+    {
+      title: "Leave Type",
+      dataIndex: "leaveType",
+      key: "leaveType",
+      render: (type) => type || "N/A",
     },
     {
       title: "From Date",
@@ -319,6 +254,11 @@ const DriverDetailPage = ({ params }: { params: { driverId: string } }) => {
       render: (date) => new Date(date).toLocaleDateString("en-IN"),
     },
     {
+      title: "Days",
+      dataIndex: "totalDays",
+      key: "totalDays",
+    },
+    {
       title: "Reason",
       dataIndex: "reason",
       key: "reason",
@@ -329,25 +269,26 @@ const DriverDetailPage = ({ params }: { params: { driverId: string } }) => {
       key: "status",
       render: (status: string) => {
         const config = {
-          approved: { color: "green", text: "Approved" },
-          pending: { color: "orange", text: "Pending" },
-          rejected: { color: "red", text: "Rejected" },
+          APPROVED: { color: "green", text: "Approved" },
+          PENDING: { color: "orange", text: "Pending" },
+          REJECTED: { color: "red", text: "Rejected" },
+          CANCELLED: { color: "gray", text: "Cancelled" },
         };
         const statusConfig = config[status as keyof typeof config];
         return (
-          <Tag color={statusConfig.color} className="!text-sm !px-3 !py-1">
-            {statusConfig.text}
+          <Tag color={statusConfig?.color || "default"} className="!text-sm !px-3 !py-1">
+            {statusConfig?.text || status}
           </Tag>
         );
       },
     },
   ];
 
-  const salaryColumns: ColumnsType<SalaryData> = [
+  const salaryColumns: ColumnsType<SalaryHistory> = [
     {
-      title: "Month",
-      dataIndex: "month",
-      key: "month",
+      title: "Month/Year",
+      key: "monthYear",
+      render: (_, record) => `${record.month}/${record.year}`,
     },
     {
       title: "Basic Salary",
@@ -360,7 +301,7 @@ const DriverDetailPage = ({ params }: { params: { driverId: string } }) => {
       dataIndex: "bonus",
       key: "bonus",
       render: (amount) => (
-        <span className="text-green-600">+₹{amount.toLocaleString()}</span>
+        <span className="text-green-600">+₹{(amount || 0).toLocaleString()}</span>
       ),
     },
     {
@@ -368,7 +309,7 @@ const DriverDetailPage = ({ params }: { params: { driverId: string } }) => {
       dataIndex: "deductions",
       key: "deductions",
       render: (amount) => (
-        <span className="text-red-600">-₹{amount.toLocaleString()}</span>
+        <span className="text-red-600">-₹{(amount || 0).toLocaleString()}</span>
       ),
     },
     {
@@ -380,23 +321,31 @@ const DriverDetailPage = ({ params }: { params: { driverId: string } }) => {
       ),
     },
     {
-      title: "Paid On",
-      dataIndex: "paidOn",
-      key: "paidOn",
-      render: (date) => new Date(date).toLocaleDateString("en-IN"),
+      title: "Payment Date",
+      dataIndex: "paymentDate",
+      key: "paymentDate",
+      render: (date) => date ? new Date(date).toLocaleDateString("en-IN") : "N/A",
     },
     {
       title: "Status",
       dataIndex: "status",
       key: "status",
-      render: (status: string) => (
-        <Tag
-          color={status === "paid" ? "green" : "orange"}
-          className="!text-sm !px-3 !py-1"
-        >
-          {status === "paid" ? "Paid" : "Pending"}
-        </Tag>
-      ),
+      render: (status: string) => {
+        const config = {
+          PAID: { color: "green", text: "Paid" },
+          PENDING: { color: "orange", text: "Pending" },
+          PROCESSING: { color: "blue", text: "Processing" },
+        };
+        const statusConfig = config[status as keyof typeof config];
+        return (
+          <Tag
+            color={statusConfig?.color || "default"}
+            className="!text-sm !px-3 !py-1"
+          >
+            {statusConfig?.text || status}
+          </Tag>
+        );
+      },
     },
   ];
 
@@ -438,18 +387,22 @@ const DriverDetailPage = ({ params }: { params: { driverId: string } }) => {
                 <div className="flex items-center gap-3 mt-2">
                   <Tag
                     color={
-                      driverData.status === "active"
+                      driverData.status === "ACTIVE"
                         ? "green"
-                        : driverData.status === "on-leave"
+                        : driverData.status === "ON_LEAVE"
                         ? "orange"
+                        : driverData.status === "SUSPENDED"
+                        ? "volcano"
                         : "red"
                     }
                     className="!text-sm !px-3 !py-1"
                   >
-                    {driverData.status === "active"
+                    {driverData.status === "ACTIVE"
                       ? "Active"
-                      : driverData.status === "on-leave"
+                      : driverData.status === "ON_LEAVE"
                       ? "On Leave"
+                      : driverData.status === "SUSPENDED"
+                      ? "Suspended"
                       : "Inactive"}
                   </Tag>
                   <span className="text-sm text-gray-600">
@@ -469,7 +422,7 @@ const DriverDetailPage = ({ params }: { params: { driverId: string } }) => {
               icon={<AntDesignEditOutlined />}
               size="large"
               onClick={() =>
-                router.push(`/mtadmin/driver/${params.driverId}/edit`)
+                router.push(`/mtadmin/driver/${driverId}/edit`)
               }
               className="!bg-blue-600"
             >
@@ -664,14 +617,14 @@ const DriverDetailPage = ({ params }: { params: { driverId: string } }) => {
         <Card
           title={
             <span className="text-lg font-semibold">
-              Leave History ({leaves.length})
+              Leave History ({leaveHistoryData.length})
             </span>
           }
           className="shadow-sm"
         >
           <Table
             columns={leaveColumns}
-            dataSource={leaves}
+            dataSource={leaveHistoryData}
             pagination={{ pageSize: 5 }}
             scroll={{ x: 800 }}
           />
@@ -683,7 +636,7 @@ const DriverDetailPage = ({ params }: { params: { driverId: string } }) => {
           title={
             <div className="flex items-center justify-between">
               <span className="text-lg font-semibold">
-                Salary History ({salaryHistory.length})
+                Salary History ({salaryHistoryData.length})
               </span>
               <Button
                 type="primary"
@@ -698,7 +651,7 @@ const DriverDetailPage = ({ params }: { params: { driverId: string } }) => {
         >
           <Table
             columns={salaryColumns}
-            dataSource={salaryHistory}
+            dataSource={salaryHistoryData}
             pagination={{ pageSize: 5 }}
             scroll={{ x: 1000 }}
           />

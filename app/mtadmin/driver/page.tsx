@@ -13,11 +13,15 @@ import {
   IcBaselineCalendarMonth,
 } from "@/components/icons";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { getPaginatedDrivers, type Driver } from "@/services/driver.api";
+import { getCookie } from "cookies-next";
 
 const { Search } = Input;
 
 interface DriverData {
   key: string;
+  id: number;
   driverId: string;
   name: string;
   email: string;
@@ -26,204 +30,55 @@ interface DriverData {
   experience: number;
   totalBookings: number;
   completedBookings: number;
+  cancelledBookings: number;
   rating: number;
-  status: "active" | "inactive" | "on-leave";
-  joinedDate: string;
+  status: "ACTIVE" | "INACTIVE" | "ON_LEAVE" | "SUSPENDED";
+  joiningDate: string;
 }
 
 const DriverManagementPage = () => {
   const router = useRouter();
+  const schoolId: number = parseInt(getCookie("school")?.toString() || "0");
   const [searchText, setSearchText] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
-  // Mock driver data
-  const [drivers] = useState<DriverData[]>([
-    {
-      key: "1",
-      driverId: "DRV-001",
-      name: "Ramesh Kumar",
-      email: "ramesh.kumar@idrive.com",
-      mobile: "9876543210",
-      licenseNumber: "DL-0320190012345",
-      experience: 8,
-      totalBookings: 245,
-      completedBookings: 238,
-      rating: 4.8,
-      status: "active",
-      joinedDate: "2023-01-15",
-    },
-    {
-      key: "2",
-      driverId: "DRV-002",
-      name: "Suresh Sharma",
-      email: "suresh.sharma@idrive.com",
-      mobile: "9876543211",
-      licenseNumber: "DL-0320190023456",
-      experience: 10,
-      totalBookings: 312,
-      completedBookings: 305,
-      rating: 4.9,
-      status: "active",
-      joinedDate: "2022-11-20",
-    },
-    {
-      key: "3",
-      driverId: "DRV-003",
-      name: "Vikram Singh",
-      email: "vikram.singh@idrive.com",
-      mobile: "9876543212",
-      licenseNumber: "DL-0320190034567",
-      experience: 5,
-      totalBookings: 156,
-      completedBookings: 150,
-      rating: 4.6,
-      status: "on-leave",
-      joinedDate: "2023-05-10",
-    },
-    {
-      key: "4",
-      driverId: "DRV-004",
-      name: "Manoj Verma",
-      email: "manoj.verma@idrive.com",
-      mobile: "9876543213",
-      licenseNumber: "DL-0320190045678",
-      experience: 12,
-      totalBookings: 420,
-      completedBookings: 410,
-      rating: 4.9,
-      status: "active",
-      joinedDate: "2022-08-05",
-    },
-    {
-      key: "5",
-      driverId: "DRV-005",
-      name: "Rajiv Gupta",
-      email: "rajiv.gupta@idrive.com",
-      mobile: "9876543214",
-      licenseNumber: "DL-0320190056789",
-      experience: 3,
-      totalBookings: 89,
-      completedBookings: 85,
-      rating: 4.5,
-      status: "active",
-      joinedDate: "2024-01-12",
-    },
-    {
-      key: "6",
-      driverId: "DRV-006",
-      name: "Anil Kumar",
-      email: "anil.kumar@idrive.com",
-      mobile: "9876543215",
-      licenseNumber: "DL-0320190067890",
-      experience: 7,
-      totalBookings: 198,
-      completedBookings: 192,
-      rating: 4.7,
-      status: "inactive",
-      joinedDate: "2023-03-22",
-    },
-    {
-      key: "7",
-      driverId: "DRV-007",
-      name: "Deepak Rao",
-      email: "deepak.rao@idrive.com",
-      mobile: "9876543216",
-      licenseNumber: "DL-0320190078901",
-      experience: 6,
-      totalBookings: 175,
-      completedBookings: 170,
-      rating: 4.6,
-      status: "active",
-      joinedDate: "2023-06-18",
-    },
-    {
-      key: "8",
-      driverId: "DRV-008",
-      name: "Sanjay Patel",
-      email: "sanjay.patel@idrive.com",
-      mobile: "9876543217",
-      licenseNumber: "DL-0320190089012",
-      experience: 9,
-      totalBookings: 278,
-      completedBookings: 270,
-      rating: 4.8,
-      status: "active",
-      joinedDate: "2022-12-10",
-    },
-    {
-      key: "9",
-      driverId: "DRV-009",
-      name: "Prakash Reddy",
-      email: "prakash.reddy@idrive.com",
-      mobile: "9876543218",
-      licenseNumber: "DL-0320190090123",
-      experience: 4,
-      totalBookings: 112,
-      completedBookings: 108,
-      rating: 4.5,
-      status: "active",
-      joinedDate: "2023-09-05",
-    },
-    {
-      key: "10",
-      driverId: "DRV-010",
-      name: "Harish Nair",
-      email: "harish.nair@idrive.com",
-      mobile: "9876543219",
-      licenseNumber: "DL-0320190101234",
-      experience: 11,
-      totalBookings: 356,
-      completedBookings: 348,
-      rating: 4.9,
-      status: "active",
-      joinedDate: "2022-10-15",
-    },
-    {
-      key: "11",
-      driverId: "DRV-011",
-      name: "Kiran Kumar",
-      email: "kiran.kumar@idrive.com",
-      mobile: "9876543220",
-      licenseNumber: "DL-0320190112345",
-      experience: 2,
-      totalBookings: 45,
-      completedBookings: 42,
-      rating: 4.3,
-      status: "on-leave",
-      joinedDate: "2024-03-20",
-    },
-    {
-      key: "12",
-      driverId: "DRV-012",
-      name: "Mohan Das",
-      email: "mohan.das@idrive.com",
-      mobile: "9876543221",
-      licenseNumber: "DL-0320190123456",
-      experience: 15,
-      totalBookings: 512,
-      completedBookings: 500,
-      rating: 5.0,
-      status: "active",
-      joinedDate: "2022-06-01",
-    },
-  ]);
-
-  // Filter and search drivers
-  const filteredDrivers = drivers.filter((driver) => {
-    const matchesSearch =
-      driver.name.toLowerCase().includes(searchText.toLowerCase()) ||
-      driver.email.toLowerCase().includes(searchText.toLowerCase()) ||
-      driver.mobile.includes(searchText) ||
-      driver.driverId.toLowerCase().includes(searchText.toLowerCase()) ||
-      driver.licenseNumber.toLowerCase().includes(searchText.toLowerCase());
-
-    const matchesStatus =
-      filterStatus === "all" || driver.status === filterStatus;
-
-    return matchesSearch && matchesStatus;
+  // Fetch drivers from API
+  const { data: driversResponse, isLoading, refetch } = useQuery({
+    queryKey: ["drivers", schoolId, currentPage, pageSize, searchText, filterStatus],
+    queryFn: () => getPaginatedDrivers({
+      searchPaginationInput: {
+        skip: (currentPage - 1) * pageSize,
+        take: pageSize,
+        search: searchText,
+      },
+      whereSearchInput: {
+        schoolId: schoolId,
+        status: filterStatus === "all" ? undefined : filterStatus,
+      },
+    }),
+    enabled: schoolId > 0,
   });
+
+  const drivers: DriverData[] = driversResponse?.data?.getPaginatedDriver?.data?.map((driver: Driver) => ({
+    key: driver.id.toString(),
+    id: driver.id,
+    driverId: driver.driverId,
+    name: driver.name,
+    email: driver.email,
+    mobile: driver.mobile,
+    licenseNumber: driver.licenseNumber,
+    experience: driver.experience,
+    totalBookings: driver.totalBookings,
+    completedBookings: driver.completedBookings,
+    cancelledBookings: driver.cancelledBookings,
+    rating: driver.rating,
+    status: driver.status,
+    joiningDate: driver.joiningDate,
+  })) || [];
+
+  const totalDrivers = driversResponse?.data?.getPaginatedDriver?.total || 0;
 
   const columns: ColumnsType<DriverData> = [
     {
@@ -321,11 +176,12 @@ const DriverManagementPage = () => {
       key: "status",
       width: 120,
       align: "center",
-      render: (status: "active" | "inactive" | "on-leave") => {
+      render: (status: "ACTIVE" | "INACTIVE" | "ON_LEAVE" | "SUSPENDED") => {
         const config = {
-          active: { color: "green", text: "Active" },
-          inactive: { color: "red", text: "Inactive" },
-          "on-leave": { color: "orange", text: "On Leave" },
+          ACTIVE: { color: "green", text: "Active" },
+          INACTIVE: { color: "red", text: "Inactive" },
+          ON_LEAVE: { color: "orange", text: "On Leave" },
+          SUSPENDED: { color: "volcano", text: "Suspended" },
         };
         return (
           <Tag
@@ -339,10 +195,10 @@ const DriverManagementPage = () => {
     },
     {
       title: "Joined Date",
-      dataIndex: "joinedDate",
-      key: "joinedDate",
+      dataIndex: "joiningDate",
+      key: "joiningDate",
       width: 130,
-      sorter: (a, b) => a.joinedDate.localeCompare(b.joinedDate),
+      sorter: (a, b) => a.joiningDate.localeCompare(b.joiningDate),
       render: (date) => new Date(date).toLocaleDateString("en-IN"),
     },
     {
@@ -355,7 +211,7 @@ const DriverManagementPage = () => {
           <Button
             type="default"
             icon={<AntDesignEyeOutlined />}
-            onClick={() => router.push(`/mtadmin/driver/${record.driverId}`)}
+            onClick={() => router.push(`/mtadmin/driver/${record.id}`)}
           >
             View
           </Button>
@@ -363,7 +219,7 @@ const DriverManagementPage = () => {
             type="primary"
             icon={<AntDesignEditOutlined />}
             onClick={() =>
-              router.push(`/mtadmin/driver/${record.driverId}/edit`)
+              router.push(`/mtadmin/driver/${record.id}/edit`)
             }
             className="!bg-blue-600"
           >
@@ -376,12 +232,12 @@ const DriverManagementPage = () => {
 
   const stats = {
     total: drivers.length,
-    active: drivers.filter((d) => d.status === "active").length,
-    inactive: drivers.filter((d) => d.status === "inactive").length,
-    onLeave: drivers.filter((d) => d.status === "on-leave").length,
-    avgRating: (
-      drivers.reduce((sum, d) => sum + d.rating, 0) / drivers.length
-    ).toFixed(1),
+    active: drivers.filter((d) => d.status === "ACTIVE").length,
+    inactive: drivers.filter((d) => d.status === "INACTIVE").length,
+    onLeave: drivers.filter((d) => d.status === "ON_LEAVE").length,
+    avgRating: drivers.length > 0 
+      ? (drivers.reduce((sum, d) => sum + d.rating, 0) / drivers.length).toFixed(1)
+      : "0.0",
   };
 
   return (
@@ -403,6 +259,7 @@ const DriverManagementPage = () => {
                 type="default"
                 icon={<IcBaselineRefresh className="text-lg" />}
                 size="large"
+                onClick={() => refetch()}
               >
                 Refresh
               </Button>
@@ -522,9 +379,10 @@ const DriverManagementPage = () => {
                 size="large"
                 options={[
                   { label: "All Drivers", value: "all" },
-                  { label: "Active", value: "active" },
-                  { label: "On Leave", value: "on-leave" },
-                  { label: "Inactive", value: "inactive" },
+                  { label: "Active", value: "ACTIVE" },
+                  { label: "On Leave", value: "ON_LEAVE" },
+                  { label: "Inactive", value: "INACTIVE" },
+                  { label: "Suspended", value: "SUSPENDED" },
                 ]}
               />
             </Space>
@@ -536,11 +394,12 @@ const DriverManagementPage = () => {
         <Card className="shadow-sm">
           <Table
             columns={columns}
-            dataSource={filteredDrivers}
+            dataSource={drivers}
+            loading={isLoading}
             pagination={{
               current: currentPage,
               pageSize: pageSize,
-              total: filteredDrivers.length,
+              total: totalDrivers,
               onChange: (page) => setCurrentPage(page),
               showTotal: (total, range) =>
                 `${range[0]}-${range[1]} of ${total} drivers`,

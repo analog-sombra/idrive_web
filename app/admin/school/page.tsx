@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Card, Table, Input, Button, Tag, Space, Select, Avatar } from "antd";
+import { useState, useEffect } from "react";
+import { Card, Table, Input, Button, Tag, Space, Select, Avatar, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import {
   AntDesignEyeOutlined,
@@ -11,200 +11,84 @@ import {
   IcBaselineRefresh,
 } from "@/components/icons";
 import { useRouter } from "next/navigation";
+import { getPaginatedSchools, School } from "@/services/school.api";
 
 const { Search } = Input;
 
-interface SchoolData {
-  key: string;
-  schoolId: string;
-  name: string;
-  registrationNumber: string;
-  email: string;
-  phone: string;
-  location: string;
-  totalStudents: number;
-  totalInstructors: number;
-  totalVehicles: number;
-  status: "active" | "inactive" | "suspended";
-  joinedDate: string;
-}
+type SchoolStatus = "ACTIVE" | "INACTIVE" | "SUSPENDED";
 
 const SchoolsListPage = () => {
   const router = useRouter();
   const [searchText, setSearchText] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const [schools, setSchools] = useState<School[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [total, setTotal] = useState(0);
   const pageSize = 10;
 
-  // Mock schools data
-  const [schools] = useState<SchoolData[]>([
-    {
-      key: "1",
-      schoolId: "SCH-001",
-      name: "iDrive Driving School - Rohini",
-      registrationNumber: "DL/DS/2022/12345",
-      email: "rohini@idrive.com",
-      phone: "+91 9876543210",
-      location: "Rohini, New Delhi",
-      totalStudents: 245,
-      totalInstructors: 12,
-      totalVehicles: 15,
-      status: "active",
-      joinedDate: "2022-01-15",
-    },
-    {
-      key: "2",
-      schoolId: "SCH-002",
-      name: "iDrive Driving School - Dwarka",
-      registrationNumber: "DL/DS/2022/12346",
-      email: "dwarka@idrive.com",
-      phone: "+91 9876543211",
-      location: "Dwarka, New Delhi",
-      totalStudents: 198,
-      totalInstructors: 10,
-      totalVehicles: 12,
-      status: "active",
-      joinedDate: "2022-03-20",
-    },
-    {
-      key: "3",
-      schoolId: "SCH-003",
-      name: "iDrive Driving School - Noida",
-      registrationNumber: "DL/DS/2022/12347",
-      email: "noida@idrive.com",
-      phone: "+91 9876543212",
-      location: "Noida, Uttar Pradesh",
-      totalStudents: 312,
-      totalInstructors: 15,
-      totalVehicles: 18,
-      status: "active",
-      joinedDate: "2022-05-10",
-    },
-    {
-      key: "4",
-      schoolId: "SCH-004",
-      name: "iDrive Driving School - Gurgaon",
-      registrationNumber: "DL/DS/2022/12348",
-      email: "gurgaon@idrive.com",
-      phone: "+91 9876543213",
-      location: "Gurgaon, Haryana",
-      totalStudents: 156,
-      totalInstructors: 8,
-      totalVehicles: 10,
-      status: "active",
-      joinedDate: "2022-07-15",
-    },
-    {
-      key: "5",
-      schoolId: "SCH-005",
-      name: "iDrive Driving School - Faridabad",
-      registrationNumber: "DL/DS/2023/12349",
-      email: "faridabad@idrive.com",
-      phone: "+91 9876543214",
-      location: "Faridabad, Haryana",
-      totalStudents: 89,
-      totalInstructors: 6,
-      totalVehicles: 8,
-      status: "inactive",
-      joinedDate: "2023-02-20",
-    },
-    {
-      key: "6",
-      schoolId: "SCH-006",
-      name: "iDrive Driving School - Ghaziabad",
-      registrationNumber: "DL/DS/2023/12350",
-      email: "ghaziabad@idrive.com",
-      phone: "+91 9876543215",
-      location: "Ghaziabad, Uttar Pradesh",
-      totalStudents: 134,
-      totalInstructors: 9,
-      totalVehicles: 11,
-      status: "active",
-      joinedDate: "2023-04-18",
-    },
-    {
-      key: "7",
-      schoolId: "SCH-007",
-      name: "iDrive Driving School - Vasant Kunj",
-      registrationNumber: "DL/DS/2023/12351",
-      email: "vasantkunj@idrive.com",
-      phone: "+91 9876543216",
-      location: "Vasant Kunj, New Delhi",
-      totalStudents: 178,
-      totalInstructors: 11,
-      totalVehicles: 14,
-      status: "active",
-      joinedDate: "2023-06-25",
-    },
-    {
-      key: "8",
-      schoolId: "SCH-008",
-      name: "iDrive Driving School - Rajouri Garden",
-      registrationNumber: "DL/DS/2023/12352",
-      email: "rajourigarden@idrive.com",
-      phone: "+91 9876543217",
-      location: "Rajouri Garden, New Delhi",
-      totalStudents: 201,
-      totalInstructors: 10,
-      totalVehicles: 13,
-      status: "suspended",
-      joinedDate: "2023-08-12",
-    },
-    {
-      key: "9",
-      schoolId: "SCH-009",
-      name: "iDrive Driving School - Greater Noida",
-      registrationNumber: "DL/DS/2023/12353",
-      email: "greaternoida@idrive.com",
-      phone: "+91 9876543218",
-      location: "Greater Noida, Uttar Pradesh",
-      totalStudents: 267,
-      totalInstructors: 13,
-      totalVehicles: 16,
-      status: "active",
-      joinedDate: "2023-09-30",
-    },
-    {
-      key: "10",
-      schoolId: "SCH-010",
-      name: "iDrive Driving School - Lajpat Nagar",
-      registrationNumber: "DL/DS/2023/12354",
-      email: "lajpatnagar@idrive.com",
-      phone: "+91 9876543219",
-      location: "Lajpat Nagar, New Delhi",
-      totalStudents: 189,
-      totalInstructors: 9,
-      totalVehicles: 12,
-      status: "active",
-      joinedDate: "2023-11-05",
-    },
-  ]);
+  // Fetch schools from API
+  const fetchSchools = async () => {
+    setLoading(true);
+    try {
+      // Build where clause for filtering
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const where: any = {};
+      
+      // Status filter
+      if (filterStatus !== "all") {
+        where.status = filterStatus as SchoolStatus;
+      }
+      
+      // Search filter
+      if (searchText.trim()) {
+        where.OR = [
+          { name: { contains: searchText, mode: "insensitive" } },
+          { email: { contains: searchText, mode: "insensitive" } },
+          { phone: { contains: searchText } },
+          { registrationNumber: { contains: searchText, mode: "insensitive" } },
+          { address: { contains: searchText, mode: "insensitive" } },
+        ];
+      }
 
-  // Filter and search schools
-  const filteredSchools = schools.filter((school) => {
-    const matchesSearch =
-      school.name.toLowerCase().includes(searchText.toLowerCase()) ||
-      school.email.toLowerCase().includes(searchText.toLowerCase()) ||
-      school.phone.includes(searchText) ||
-      school.schoolId.toLowerCase().includes(searchText.toLowerCase()) ||
-      school.location.toLowerCase().includes(searchText.toLowerCase()) ||
-      school.registrationNumber
-        .toLowerCase()
-        .includes(searchText.toLowerCase());
+      const skip = (currentPage - 1) * pageSize;
+      const response = await getPaginatedSchools({
+        searchPaginationInput: {
+          skip,
+          take: pageSize,
+          search: searchText.trim() || undefined,
+        },
+        whereSearchInput: Object.keys(where).length > 0 ? where : {},
+      });
 
-    const matchesStatus =
-      filterStatus === "all" || school.status === filterStatus;
+      if (response.status) {
+        const schoolData = response.data.getPaginatedSchool;
+        setSchools(schoolData.data || []);
+        setTotal(schoolData.total || 0);
+      } else {
+        message.error(response.message || "Failed to fetch schools");
+      }
+    } catch (error) {
+      console.error("Error fetching schools:", error);
+      message.error("Failed to load schools");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    return matchesSearch && matchesStatus;
-  });
+  // Fetch schools on mount and when filters change
+  useEffect(() => {
+    fetchSchools();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, filterStatus, searchText]);
 
-  const columns: ColumnsType<SchoolData> = [
+  const columns: ColumnsType<School> = [
     {
       title: "School ID",
-      dataIndex: "schoolId",
-      key: "schoolId",
+      dataIndex: "id",
+      key: "id",
       width: 120,
-      sorter: (a, b) => a.schoolId.localeCompare(b.schoolId),
+      render: (id: number) => `SCH-${String(id).padStart(3, "0")}`,
     },
     {
       title: "School Details",
@@ -224,7 +108,7 @@ const SchoolsListPage = () => {
               {record.name}
             </div>
             <div className="text-xs text-gray-500 truncate">
-              {record.location}
+              {record.address}
             </div>
             <div className="text-xs text-gray-600">
               {record.registrationNumber}
@@ -246,35 +130,29 @@ const SchoolsListPage = () => {
     },
     {
       title: "Students",
-      dataIndex: "totalStudents",
       key: "totalStudents",
       width: 100,
       align: "center",
-      sorter: (a, b) => a.totalStudents - b.totalStudents,
-      render: (count) => (
-        <span className="font-semibold text-purple-600">{count}</span>
+      render: () => (
+        <span className="font-semibold text-purple-600">-</span>
       ),
     },
     {
       title: "Instructors",
-      dataIndex: "totalInstructors",
       key: "totalInstructors",
       width: 110,
       align: "center",
-      sorter: (a, b) => a.totalInstructors - b.totalInstructors,
-      render: (count) => (
-        <span className="font-semibold text-blue-600">{count}</span>
+      render: () => (
+        <span className="font-semibold text-blue-600">-</span>
       ),
     },
     {
       title: "Vehicles",
-      dataIndex: "totalVehicles",
       key: "totalVehicles",
       width: 100,
       align: "center",
-      sorter: (a, b) => a.totalVehicles - b.totalVehicles,
-      render: (count) => (
-        <span className="font-semibold text-green-600">{count}</span>
+      render: () => (
+        <span className="font-semibold text-green-600">-</span>
       ),
     },
     {
@@ -283,11 +161,11 @@ const SchoolsListPage = () => {
       key: "status",
       width: 120,
       align: "center",
-      render: (status: "active" | "inactive" | "suspended") => {
+      render: (status: SchoolStatus) => {
         const config = {
-          active: { color: "green", text: "Active" },
-          inactive: { color: "red", text: "Inactive" },
-          suspended: { color: "orange", text: "Suspended" },
+          ACTIVE: { color: "green", text: "Active" },
+          INACTIVE: { color: "red", text: "Inactive" },
+          SUSPENDED: { color: "orange", text: "Suspended" },
         };
         return (
           <Tag color={config[status].color} className="!text-sm !px-3 !py-1">
@@ -298,11 +176,10 @@ const SchoolsListPage = () => {
     },
     {
       title: "Joined Date",
-      dataIndex: "joinedDate",
-      key: "joinedDate",
+      dataIndex: "createdAt",
+      key: "createdAt",
       width: 130,
-      sorter: (a, b) => a.joinedDate.localeCompare(b.joinedDate),
-      render: (date) => new Date(date).toLocaleDateString("en-IN"),
+      render: (date: string) => new Date(date).toLocaleDateString("en-IN"),
     },
     {
       title: "Action",
@@ -314,7 +191,7 @@ const SchoolsListPage = () => {
           <Button
             type="default"
             icon={<AntDesignEyeOutlined />}
-            onClick={() => router.push(`/admin/school/${record.schoolId}`)}
+            onClick={() => router.push(`/admin/school/${record.id}`)}
           >
             View
           </Button>
@@ -322,7 +199,7 @@ const SchoolsListPage = () => {
             type="primary"
             icon={<AntDesignEditOutlined />}
             onClick={() =>
-              router.push(`/admin/school/${record.schoolId}/edit`)
+              router.push(`/admin/school/${record.id}/edit`)
             }
             className="!bg-blue-600"
           >
@@ -335,9 +212,9 @@ const SchoolsListPage = () => {
 
   const stats = {
     total: schools.length,
-    active: schools.filter((s) => s.status === "active").length,
-    inactive: schools.filter((s) => s.status === "inactive").length,
-    suspended: schools.filter((s) => s.status === "suspended").length,
+    active: schools.filter((s) => s.status === "ACTIVE").length,
+    inactive: schools.filter((s) => s.status === "INACTIVE").length,
+    suspended: schools.filter((s) => s.status === "SUSPENDED").length,
   };
 
   return (
@@ -359,6 +236,8 @@ const SchoolsListPage = () => {
                 type="default"
                 icon={<IcBaselineRefresh className="text-lg" />}
                 size="large"
+                onClick={fetchSchools}
+                loading={loading}
               >
                 Refresh
               </Button>
@@ -464,9 +343,9 @@ const SchoolsListPage = () => {
                 size="large"
                 options={[
                   { label: "All Schools", value: "all" },
-                  { label: "Active", value: "active" },
-                  { label: "Inactive", value: "inactive" },
-                  { label: "Suspended", value: "suspended" },
+                  { label: "Active", value: "ACTIVE" },
+                  { label: "Inactive", value: "INACTIVE" },
+                  { label: "Suspended", value: "SUSPENDED" },
                 ]}
               />
             </Space>
@@ -478,11 +357,13 @@ const SchoolsListPage = () => {
         <Card className="shadow-sm">
           <Table
             columns={columns}
-            dataSource={filteredSchools}
+            dataSource={schools}
+            loading={loading}
+            rowKey="id"
             pagination={{
               current: currentPage,
               pageSize: pageSize,
-              total: filteredSchools.length,
+              total: total,
               onChange: (page) => setCurrentPage(page),
               showTotal: (total, range) =>
                 `${range[0]}-${range[1]} of ${total} schools`,

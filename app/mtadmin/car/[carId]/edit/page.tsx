@@ -1,79 +1,35 @@
 "use client";
 
+import { use, useEffect, useRef } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { valibotResolver } from "@hookform/resolvers/valibot";
 import { onFormError } from "@/utils/methods";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "react-toastify";
-import { AddCarForm, AddCarSchema } from "@/schema/addcar";
+import { EditCarForm, EditCarSchema } from "@/schema/editcar";
 import { TextInput } from "@/components/form/inputfields/textinput";
 import { DateInput } from "@/components/form/inputfields/dateinput";
 import { Select } from "@/components/form/inputfields/select";
-import { Button, Card, Modal } from "antd";
+import { Button, Card, Spin, Alert, Modal } from "antd";
 import {
   Fa6SolidArrowLeftLong,
-  AntDesignPlusCircleOutlined,
+  AntDesignCheckOutlined,
 } from "@/components/icons";
-import { getCookie } from "cookies-next";
-import { createCar, getPaginatedCars } from "@/services/car.api";
+import { getCarById, updateCar } from "@/services/car.api";
 import { getAllDrivers } from "@/services/driver.api";
-import { useEffect } from "react";
+import { getCookie } from "cookies-next";
 
-const AddCarPage = () => {
+const EditCarPage = ({ params }: { params: Promise<{ carId: string }> }) => {
   const router = useRouter();
+  const initialDataLoaded = useRef(false);
+  const { carId } = use(params);
+  const numericCarId = parseInt(carId);
   const schoolId: number = parseInt(getCookie("school")?.toString() || "0");
 
-  const methods = useForm<AddCarForm>({
-    resolver: valibotResolver(AddCarSchema),
+  const methods = useForm<EditCarForm>({
+    resolver: valibotResolver(EditCarSchema),
   });
-
-  // Fetch existing cars to generate next carId
-  const { data: carsResponse } = useQuery({
-    queryKey: ["carsForId", schoolId],
-    queryFn: async () => {
-      if (!schoolId || schoolId === 0) {
-        throw new Error("School ID not found");
-      }
-      return await getPaginatedCars({
-        searchPaginationInput: {
-          skip: 0,
-          take: 1000, // Get all cars to find the latest carId
-          search: "",
-        },
-        whereSearchInput: {
-          schoolId,
-        },
-      });
-    },
-    enabled: schoolId > 0,
-  });
-
-  // Generate carId when cars data is loaded
-  useEffect(() => {
-    if (carsResponse?.data?.getPaginatedCar?.data) {
-      const cars = carsResponse.data.getPaginatedCar.data;
-      const prefix = `CAR${schoolId}`;
-      
-      // Find the latest carId for this school
-      const schoolCars = cars.filter(car => car.carId.startsWith(prefix));
-      
-      let nextNumber = 1;
-      if (schoolCars.length > 0) {
-        const latestCarId = schoolCars
-          .map(car => {
-            const numStr = car.carId.replace(prefix, '');
-            return parseInt(numStr) || 0;
-          })
-          .sort((a, b) => b - a)[0];
-        
-        nextNumber = latestCarId + 1;
-      }
-      
-      const newCarId = `${prefix}${nextNumber.toString().padStart(3, '0')}`;
-      methods.setValue('carId', newCarId);
-    }
-  }, [carsResponse, schoolId, methods]);
 
   // Fetch active drivers for the school
   const { data: driversResponse } = useQuery({
@@ -95,13 +51,55 @@ const AddCarPage = () => {
     value: driver.id.toString(),
   })) || [];
 
-  // Create car mutation
-  const createCarMutation = useMutation({
-    mutationKey: ["createCar"],
-    mutationFn: async (data: AddCarForm) => {
-      const createData = {
-        schoolId,
-        carId: data.carId,
+  // Fetch existing car data
+  const { data: carResponse, isLoading, isError, error } = useQuery({
+    queryKey: ["car", numericCarId],
+    queryFn: async () => {
+      if (!numericCarId || isNaN(numericCarId)) {
+        throw new Error("Invalid car ID");
+      }
+      return await getCarById(numericCarId);
+    },
+    enabled: !isNaN(numericCarId),
+  });
+
+  // Set form values when data is loaded
+  useEffect(() => {
+    if (carResponse?.status && carResponse.data.getCarById && !initialDataLoaded.current) {
+      const car = carResponse.data.getCarById;
+      methods.reset({
+        carName: car.carName || "",
+        model: car.model || "",
+        registrationNumber: car.registrationNumber || "",
+        year: car.year?.toString() || "",
+        color: car.color || "",
+        fuelType: car.fuelType || "",
+        transmission: car.transmission || "",
+        seatingCapacity: car.seatingCapacity?.toString() || "",
+        engineNumber: car.engineNumber || "",
+        chassisNumber: car.chassisNumber || "",
+        purchaseDate: car.purchaseDate || "",
+        purchaseCost: car.purchaseCost?.toString() || "",
+        currentMileage: car.currentMileage?.toString() || "",
+        insuranceNumber: car.insuranceNumber || "",
+        insuranceExpiry: car.insuranceExpiry || "",
+        pucExpiry: car.pucExpiry || "",
+        fitnessExpiry: car.fitnessExpiry || "",
+        lastServiceDate: car.lastServiceDate || "",
+        nextServiceDate: car.nextServiceDate || "",
+        assignedDriverId: car.assignedDriverId?.toString() || "",
+        status: car.status || "",
+      });
+      initialDataLoaded.current = true;
+    }
+  }, [carResponse, methods]);
+
+  // Update car mutation
+  const updateCarMutation = useMutation({
+    mutationKey: ["updateCar"],
+    mutationFn: async (data: EditCarForm) => {
+      const updateData = {
+        id: numericCarId,
         carName: data.carName,
         model: data.model,
         registrationNumber: data.registrationNumber,
@@ -122,14 +120,15 @@ const AddCarPage = () => {
         lastServiceDate: data.lastServiceDate ? new Date(data.lastServiceDate) : undefined,
         nextServiceDate: data.nextServiceDate ? new Date(data.nextServiceDate) : undefined,
         assignedDriverId: data.assignedDriverId ? parseInt(data.assignedDriverId) : undefined,
+        status: data.status as "AVAILABLE" | "IN_USE" | "MAINTENANCE" | "INACTIVE",
       };
-      return await createCar(createData);
+      return await updateCar(updateData);
     },
     onSuccess: (response) => {
-      if (response.status && response.data?.createCar) {
-        const car = response.data.createCar;
+      if (response.status && response.data?.updateCar) {
+        const car = response.data.updateCar;
         Modal.success({
-          title: "Car Added Successfully",
+          title: "Car Updated Successfully",
           content: (
             <div className="space-y-2">
               <p><strong>Car Name:</strong> {car.carName}</p>
@@ -138,25 +137,41 @@ const AddCarPage = () => {
               <p><strong>Status:</strong> {car.status}</p>
             </div>
           ),
-          onOk: () => router.push("/mtadmin/car"),
+          onOk: () => router.push(`/mtadmin/car/${numericCarId}`),
         });
       } else {
-        toast.error(response.message || "Failed to add car");
+        toast.error(response.message || "Failed to update car");
       }
     },
     onError: (error: Error) => {
-      toast.error(error.message || "An error occurred while adding the car");
+      toast.error(error.message || "An error occurred while updating the car");
     },
   });
 
-  const onSubmit = (data: AddCarForm) => {
-    createCarMutation.mutate(data);
+  const onSubmit = (data: EditCarForm) => {
+    updateCarMutation.mutate(data);
   };
 
-  const handleReset = () => {
-    methods.reset();
-    toast.info("Form reset");
-  };
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Spin size="large" tip="Loading car details..." />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-8">
+        <Alert
+          message="Error Loading Car"
+          description={error?.message || "Failed to load car details"}
+          type="error"
+          showIcon
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -168,12 +183,12 @@ const AddCarPage = () => {
               type="text"
               icon={<Fa6SolidArrowLeftLong className="text-lg" />}
               size="large"
-              onClick={() => router.push("/mtadmin/car")}
+              onClick={() => router.push(`/mtadmin/car/${numericCarId}`)}
             />
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Add New Car</h1>
+              <h1 className="text-2xl font-bold text-gray-900">Edit Car</h1>
               <p className="text-gray-600 mt-1 text-sm">
-                Register a new vehicle to the fleet
+                Update vehicle information
               </p>
             </div>
           </div>
@@ -191,16 +206,15 @@ const AddCarPage = () => {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <TextInput<AddCarForm>
+                    <TextInput<EditCarForm>
                       name="carId"
-                      title="Car ID (Auto-generated)"
+                      title="Car ID"
                       placeholder="e.g., CAR001"
-                      required
                       disable
                     />
                   </div>
                   <div>
-                    <TextInput<AddCarForm>
+                    <TextInput<EditCarForm>
                       name="carName"
                       title="Car Name"
                       placeholder="e.g., Swift Dzire"
@@ -208,7 +222,7 @@ const AddCarPage = () => {
                     />
                   </div>
                   <div>
-                    <TextInput<AddCarForm>
+                    <TextInput<EditCarForm>
                       name="model"
                       title="Model"
                       placeholder="e.g., VXI"
@@ -219,7 +233,7 @@ const AddCarPage = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                   <div>
-                    <TextInput<AddCarForm>
+                    <TextInput<EditCarForm>
                       name="registrationNumber"
                       title="Registration Number"
                       placeholder="e.g., DL01AB1234"
@@ -227,7 +241,7 @@ const AddCarPage = () => {
                     />
                   </div>
                   <div>
-                    <TextInput<AddCarForm>
+                    <TextInput<EditCarForm>
                       name="year"
                       title="Year"
                       placeholder="e.g., 2023"
@@ -236,7 +250,7 @@ const AddCarPage = () => {
                     />
                   </div>
                   <div>
-                    <TextInput<AddCarForm>
+                    <TextInput<EditCarForm>
                       name="color"
                       title="Color"
                       placeholder="e.g., White"
@@ -244,7 +258,7 @@ const AddCarPage = () => {
                     />
                   </div>
                   <div>
-                    <Select<AddCarForm>
+                    <Select<EditCarForm>
                       name="fuelType"
                       title="Fuel Type"
                       placeholder="Select fuel type"
@@ -261,7 +275,7 @@ const AddCarPage = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                   <div>
-                    <Select<AddCarForm>
+                    <Select<EditCarForm>
                       name="transmission"
                       title="Transmission"
                       placeholder="Select transmission"
@@ -273,12 +287,26 @@ const AddCarPage = () => {
                     />
                   </div>
                   <div>
-                    <TextInput<AddCarForm>
+                    <TextInput<EditCarForm>
                       name="seatingCapacity"
                       title="Seating Capacity"
                       placeholder="e.g., 5"
                       required
                       onlynumber
+                    />
+                  </div>
+                  <div>
+                    <Select<EditCarForm>
+                      name="status"
+                      title="Status"
+                      placeholder="Select status"
+                      required
+                      options={[
+                        { label: "AVAILABLE", value: "AVAILABLE" },
+                        { label: "IN_USE", value: "IN_USE" },
+                        { label: "MAINTENANCE", value: "MAINTENANCE" },
+                        { label: "INACTIVE", value: "INACTIVE" },
+                      ]}
                     />
                   </div>
                 </div>
@@ -291,7 +319,7 @@ const AddCarPage = () => {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <TextInput<AddCarForm>
+                    <TextInput<EditCarForm>
                       name="engineNumber"
                       title="Engine Number"
                       placeholder="e.g., K15B-987654"
@@ -299,7 +327,7 @@ const AddCarPage = () => {
                     />
                   </div>
                   <div>
-                    <TextInput<AddCarForm>
+                    <TextInput<EditCarForm>
                       name="chassisNumber"
                       title="Chassis Number"
                       placeholder="e.g., MA3ERLF1S00123456"
@@ -310,7 +338,7 @@ const AddCarPage = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                   <div>
-                    <TextInput<AddCarForm>
+                    <TextInput<EditCarForm>
                       name="currentMileage"
                       title="Current Mileage (km)"
                       placeholder="e.g., 12500"
@@ -320,7 +348,7 @@ const AddCarPage = () => {
                     />
                   </div>
                   <div>
-                    <TextInput<AddCarForm>
+                    <TextInput<EditCarForm>
                       name="purchaseCost"
                       title="Purchase Cost (₹)"
                       placeholder="e.g., 850000"
@@ -333,7 +361,7 @@ const AddCarPage = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                   <div>
-                    <DateInput<AddCarForm>
+                    <DateInput<EditCarForm>
                       name="purchaseDate"
                       title="Purchase Date"
                       placeholder="Select purchase date"
@@ -350,7 +378,7 @@ const AddCarPage = () => {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <TextInput<AddCarForm>
+                    <TextInput<EditCarForm>
                       name="insuranceNumber"
                       title="Insurance Number"
                       placeholder="e.g., INC-2023-12345"
@@ -358,7 +386,7 @@ const AddCarPage = () => {
                     />
                   </div>
                   <div>
-                    <DateInput<AddCarForm>
+                    <DateInput<EditCarForm>
                       name="insuranceExpiry"
                       title="Insurance Expiry Date"
                       placeholder="Select expiry date"
@@ -369,7 +397,7 @@ const AddCarPage = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                   <div>
-                    <DateInput<AddCarForm>
+                    <DateInput<EditCarForm>
                       name="pucExpiry"
                       title="PUC Expiry Date"
                       placeholder="Select expiry date"
@@ -377,7 +405,7 @@ const AddCarPage = () => {
                     />
                   </div>
                   <div>
-                    <DateInput<AddCarForm>
+                    <DateInput<EditCarForm>
                       name="fitnessExpiry"
                       title="Fitness Expiry Date"
                       placeholder="Select expiry date"
@@ -388,14 +416,14 @@ const AddCarPage = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                   <div>
-                    <DateInput<AddCarForm>
+                    <DateInput<EditCarForm>
                       name="lastServiceDate"
                       title="Last Service Date"
                       placeholder="Select date"
                     />
                   </div>
                   <div>
-                    <DateInput<AddCarForm>
+                    <DateInput<EditCarForm>
                       name="nextServiceDate"
                       title="Next Service Date"
                       placeholder="Select date"
@@ -411,7 +439,7 @@ const AddCarPage = () => {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Select<AddCarForm>
+                    <Select<EditCarForm>
                       name="assignedDriverId"
                       title="Assign Driver (Optional)"
                       placeholder="Select a driver"
@@ -423,12 +451,9 @@ const AddCarPage = () => {
 
               {/* Form Actions */}
               <div className="flex justify-end gap-4 mt-8 pt-6 border-t">
-                <Button size="large" onClick={handleReset}>
-                  Reset
-                </Button>
                 <Button
                   size="large"
-                  onClick={() => router.push("/mtadmin/car")}
+                  onClick={() => router.push(`/mtadmin/car/${numericCarId}`)}
                 >
                   Cancel
                 </Button>
@@ -436,11 +461,11 @@ const AddCarPage = () => {
                   type="primary"
                   size="large"
                   htmlType="submit"
-                  loading={createCarMutation.isPending}
-                  icon={<AntDesignPlusCircleOutlined className="text-lg" />}
+                  loading={updateCarMutation.isPending}
+                  icon={<AntDesignCheckOutlined className="text-lg" />}
                   className="!bg-gradient-to-r from-blue-600 to-purple-600"
                 >
-                  Add Car
+                  Update Car
                 </Button>
               </div>
             </form>
@@ -451,4 +476,4 @@ const AddCarPage = () => {
   );
 };
 
-export default AddCarPage;
+export default EditCarPage;

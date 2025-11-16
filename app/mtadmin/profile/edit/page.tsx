@@ -1,122 +1,175 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import {
-  Card,
-  Form,
-  Input,
-  Button,
-  Select,
-  TimePicker,
-  Upload,
-  message,
-  Divider,
-} from "antd";
-import {
-  IcBaselineArrowBack,
-  AntDesignCheckOutlined,
-  AntDesignPlusCircleOutlined,
-} from "@/components/icons";
+import { useEffect, useRef } from "react";
+import { FormProvider, useForm } from "react-hook-form";
+import { valibotResolver } from "@hookform/resolvers/valibot";
+import { onFormError } from "@/utils/methods";
 import { useRouter } from "next/navigation";
-import type { UploadFile } from "antd";
-import dayjs from "dayjs";
-import type { Dayjs } from "dayjs";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { toast } from "react-toastify";
+import { EditProfileForm, EditProfileSchema } from "@/schema/editprofile";
+import { TextInput } from "@/components/form/inputfields/textinput";
+import { TaxtAreaInput } from "@/components/form/inputfields/textareainput";
+import { MultiSelect } from "@/components/form/inputfields/multiselect";
+import { TimeInput } from "@/components/form/inputfields/timeinput";
+import { DateInput } from "@/components/form/inputfields/dateinput";
+import { IcBaselineArrowBack, AntDesignCheckOutlined } from "@/components/icons";
+import { Button, Spin, Alert } from "antd";
+import { getCookie } from "cookies-next";
+import { getSchoolById, updateSchool } from "@/services/school.api";
 
-const { TextArea } = Input;
-
-interface SchoolFormValues {
-  name: string;
-  email: string;
-  phone: string;
-  alternatePhone: string;
-  address: string;
-  registrationNumber: string;
-  gstNumber: string;
-  establishedYear: string;
-  website: string;
-  dayStartTime: Dayjs;
-  dayEndTime: Dayjs;
-  lunchStartTime: Dayjs;
-  lunchEndTime: Dayjs;
-  weeklyHoliday: string;
-  ownerName: string;
-  ownerPhone: string;
-  ownerEmail: string;
-  bankName: string;
-  accountNumber: string;
-  ifscCode: string;
-  branchName: string;
-  facebook: string;
-  instagram: string;
-  twitter: string;
-  rtoLicenseNumber: string;
-  rtoLicenseExpiry: string;
-  insuranceProvider: string;
-  insurancePolicyNumber: string;
-  insuranceExpiry: string;
-}
+const weekDays = [
+  { label: "Monday", value: "Monday" },
+  { label: "Tuesday", value: "Tuesday" },
+  { label: "Wednesday", value: "Wednesday" },
+  { label: "Thursday", value: "Thursday" },
+  { label: "Friday", value: "Friday" },
+  { label: "Saturday", value: "Saturday" },
+  { label: "Sunday", value: "Sunday" },
+];
 
 const EditSchoolProfilePage = () => {
   const router = useRouter();
-  const [form] = Form.useForm();
-  const [loading, setLoading] = useState(false);
-  const [logoImage, setLogoImage] = useState<UploadFile[]>([]);
+  const initialDataLoaded = useRef(false);
+  const schoolId: number = parseInt(getCookie("school")?.toString() || "0");
 
-  // Load existing data
+  const methods = useForm<EditProfileForm>({
+    resolver: valibotResolver(EditProfileSchema),
+  });
+
+  // Fetch existing school data
+  const { data: schoolResponse, isLoading, isError, error } = useQuery({
+    queryKey: ["school", schoolId],
+    queryFn: async () => {
+      if (!schoolId || schoolId === 0) {
+        throw new Error("School ID not found");
+      }
+      return await getSchoolById(schoolId);
+    },
+    enabled: schoolId > 0,
+  });
+
+  // Set form values when data is loaded
   useEffect(() => {
-    const mockData = {
-      name: "iDrive Driving School",
-      email: "contact@idrive.com",
-      phone: "+91 9876543210",
-      alternatePhone: "+91 9876543211",
-      address: "Plot No. 123, Sector 15, Rohini, New Delhi - 110085, India",
-      registrationNumber: "DL/DS/2022/12345",
-      gstNumber: "07AABCI1234F1Z5",
-      establishedYear: "2022",
-      website: "https://www.idrive.com",
-      dayStartTime: dayjs("08:00", "HH:mm"),
-      dayEndTime: dayjs("20:00", "HH:mm"),
-      lunchStartTime: dayjs("13:00", "HH:mm"),
-      lunchEndTime: dayjs("14:00", "HH:mm"),
-      weeklyHoliday: "Sunday",
-      ownerName: "Mr. Rajesh Kumar",
-      ownerPhone: "+91 9876543200",
-      ownerEmail: "rajesh.kumar@idrive.com",
-      bankName: "HDFC Bank",
-      accountNumber: "50200012345678",
-      ifscCode: "HDFC0001234",
-      branchName: "Rohini Sector 15",
-      facebook: "https://facebook.com/idriveschool",
-      instagram: "https://instagram.com/idriveschool",
-      twitter: "https://twitter.com/idriveschool",
-      rtoLicenseNumber: "DL-RTO-2022-456",
-      rtoLicenseExpiry: "2027-12-31",
-      insuranceProvider: "ICICI Lombard",
-      insurancePolicyNumber: "POL/2024/123456",
-      insuranceExpiry: "2025-12-31",
-    };
-
-    form.setFieldsValue(mockData);
-  }, [form]);
-
-  const handleSubmit = async (values: SchoolFormValues) => {
-    setLoading(true);
-    try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      console.log("Updated values:", values);
-      message.success("School profile updated successfully!");
-      router.push("/mtadmin/profile");
-    } catch {
-      message.error("Failed to update profile. Please try again.");
-    } finally {
-      setLoading(false);
+    if (schoolResponse?.status && schoolResponse.data.getSchoolById && !initialDataLoaded.current) {
+      const school = schoolResponse.data.getSchoolById;
+      methods.reset({
+        name: school.name || "",
+        email: school.email || "",
+        phone: school.phone || "",
+        alternatePhone: school.alternatePhone || "",
+        address: school.address || "",
+        registrationNumber: school.registrationNumber || "",
+        gstNumber: school.gstNumber || "",
+        establishedYear: school.establishedYear || "",
+        website: school.website || "",
+        dayStartTime: school.dayStartTime || "",
+        dayEndTime: school.dayEndTime || "",
+        lunchStartTime: school.lunchStartTime || "",
+        lunchEndTime: school.lunchEndTime || "",
+        weeklyHoliday: school.weeklyHoliday || "",
+        ownerName: school.ownerName || "",
+        ownerPhone: school.ownerPhone || "",
+        ownerEmail: school.ownerEmail || "",
+        bankName: school.bankName || "",
+        accountNumber: school.accountNumber || "",
+        ifscCode: school.ifscCode || "",
+        branchName: school.branchName || "",
+        rtoLicenseNumber: school.rtoLicenseNumber || "",
+        rtoLicenseExpiry: school.rtoLicenseExpiry || "",
+        insuranceProvider: school.insuranceProvider || "",
+        insurancePolicyNumber: school.insurancePolicyNumber || "",
+        insuranceExpiry: school.insuranceExpiry || "",
+        facebook: school.facebook || "",
+        instagram: school.instagram || "",
+        twitter: school.twitter || "",
+      });
+      initialDataLoaded.current = true;
     }
+  }, [schoolResponse, methods]);
+
+  // Update school mutation
+  const updateSchoolMutation = useMutation({
+    mutationKey: ["updateSchool"],
+    mutationFn: async (data: EditProfileForm) => {
+      const updateData = {
+        id: schoolId,
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        alternatePhone: data.alternatePhone || undefined,
+        address: data.address,
+        registrationNumber: data.registrationNumber,
+        gstNumber: data.gstNumber || undefined,
+        establishedYear: data.establishedYear,
+        website: data.website || undefined,
+        dayStartTime: data.dayStartTime,
+        dayEndTime: data.dayEndTime,
+        lunchStartTime: data.lunchStartTime,
+        lunchEndTime: data.lunchEndTime,
+        weeklyHoliday: data.weeklyHoliday,
+        ownerName: data.ownerName,
+        ownerPhone: data.ownerPhone,
+        ownerEmail: data.ownerEmail,
+        bankName: data.bankName,
+        accountNumber: data.accountNumber,
+        ifscCode: data.ifscCode,
+        branchName: data.branchName,
+        rtoLicenseNumber: data.rtoLicenseNumber,
+        rtoLicenseExpiry: data.rtoLicenseExpiry ? new Date(data.rtoLicenseExpiry) : undefined,
+        insuranceProvider: data.insuranceProvider || undefined,
+        insurancePolicyNumber: data.insurancePolicyNumber || undefined,
+        insuranceExpiry: data.insuranceExpiry ? new Date(data.insuranceExpiry) : undefined,
+        facebook: data.facebook || undefined,
+        instagram: data.instagram || undefined,
+        twitter: data.twitter || undefined,
+      };
+
+      const response = await updateSchool(updateData);
+      if (!response.status) {
+        throw new Error(response.message || "Failed to update profile");
+      }
+      return response;
+    },
+    onSuccess: () => {
+      toast.success("School profile updated successfully!");
+      window.location.href = "/mtadmin/profile";
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to update profile");
+    },
+  });
+
+  const onSubmit = async (data: EditProfileForm) => {
+    updateSchoolMutation.mutate(data);
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Spin size="large" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-8">
+        <Alert
+          message="Error"
+          description={error?.message || "Failed to load school profile"}
+          type="error"
+          showIcon
+          action={
+            <Button onClick={() => router.push("/mtadmin/profile")}>Back to Profile</Button>
+          }
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <div className="bg-white border-b border-gray-200">
         <div className="px-8 py-6">
           <div className="flex items-center gap-4 mb-2">
@@ -129,9 +182,7 @@ const EditSchoolProfilePage = () => {
             </Button>
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              Edit School Profile
-            </h1>
+            <h1 className="text-2xl font-bold text-gray-900">Edit School Profile</h1>
             <p className="text-gray-600 mt-1 text-sm">
               Update your driving school information
             </p>
@@ -140,492 +191,279 @@ const EditSchoolProfilePage = () => {
       </div>
 
       <div className="px-8 py-6">
-        <Card className="shadow-sm max-w-6xl mx-auto">
-          <Form
-            form={form}
-            layout="vertical"
-            onFinish={handleSubmit}
-            autoComplete="off"
-          >
-            {/* School Logo */}
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
-                School Logo
-              </h3>
-              <Form.Item label="Upload School Logo" name="logo">
-                <Upload
-                  listType="picture-card"
-                  fileList={logoImage}
-                  onChange={({ fileList }) => setLogoImage(fileList)}
-                  beforeUpload={() => false}
-                  maxCount={1}
-                >
-                  {logoImage.length === 0 && (
-                    <div>
-                      <AntDesignPlusCircleOutlined className="text-2xl" />
-                      <div className="mt-2">Upload Logo</div>
-                    </div>
-                  )}
-                </Upload>
-                <p className="text-xs text-gray-500 mt-2">
-                  Recommended size: 200x200 pixels. Max size: 2MB
-                </p>
-              </Form.Item>
-            </div>
-
-            <Divider />
-
-            {/* Basic Information */}
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
-                Basic Information
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Form.Item
-                  label="School Name"
-                  name="name"
-                  className="md:col-span-2"
-                  rules={[
-                    { required: true, message: "Please enter school name" },
-                  ]}
-                >
-                  <Input size="large" placeholder="Enter school name" />
-                </Form.Item>
-
-                <Form.Item
-                  label="Registration Number"
-                  name="registrationNumber"
-                  rules={[
-                    {
-                      required: true,
-                      message: "Please enter registration number",
-                    },
-                  ]}
-                >
-                  <Input
-                    size="large"
+        <div className="shadow-sm max-w-6xl mx-auto bg-white rounded-lg p-8">
+          <FormProvider {...methods}>
+            <form onSubmit={methods.handleSubmit(onSubmit, onFormError)} className="space-y-6">
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
+                  Basic Information
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <TextInput<EditProfileForm>
+                    title="School Name"
+                    required={true}
+                    name="name"
+                    placeholder="Enter school name"
+                  />
+                  <TextInput<EditProfileForm>
+                    title="Registration Number"
+                    required={true}
+                    name="registrationNumber"
                     placeholder="Enter registration number"
                   />
-                </Form.Item>
-
-                <Form.Item
-                  label="GST Number"
-                  name="gstNumber"
-                  rules={[
-                    { required: true, message: "Please enter GST number" },
-                  ]}
-                >
-                  <Input size="large" placeholder="Enter GST number" />
-                </Form.Item>
-
-                <Form.Item
-                  label="Established Year"
-                  name="establishedYear"
-                  rules={[
-                    {
-                      required: true,
-                      message: "Please enter established year",
-                    },
-                  ]}
-                >
-                  <Input size="large" placeholder="Enter year (e.g., 2022)" />
-                </Form.Item>
-
-                <Form.Item
-                  label="Website"
-                  name="website"
-                  rules={[
-                    { required: true, message: "Please enter website URL" },
-                    { type: "url", message: "Please enter valid URL" },
-                  ]}
-                >
-                  <Input
-                    size="large"
+                  <TextInput<EditProfileForm>
+                    title="GST Number (Optional)"
+                    required={false}
+                    name="gstNumber"
+                    placeholder="Enter GST number"
+                    maxlength={15}
+                  />
+                  <TextInput<EditProfileForm>
+                    title="Established Year"
+                    required={true}
+                    name="establishedYear"
+                    placeholder="Enter year (e.g., 2022)"
+                    maxlength={4}
+                    onlynumber={true}
+                  />
+                  <TextInput<EditProfileForm>
+                    title="Website (Optional)"
+                    required={false}
+                    name="website"
                     placeholder="https://www.yourschool.com"
                   />
-                </Form.Item>
-
-                <Form.Item
-                  label="Address"
-                  name="address"
-                  className="md:col-span-2"
-                  rules={[{ required: true, message: "Please enter address" }]}
-                >
-                  <TextArea rows={3} placeholder="Enter complete address" />
-                </Form.Item>
+                  <div className="md:col-span-2">
+                    <TaxtAreaInput<EditProfileForm>
+                      title="Address"
+                      required={true}
+                      name="address"
+                      placeholder="Enter complete address"
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <Divider />
-
-            {/* Contact Information */}
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
-                Contact Information
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Form.Item
-                  label="Email"
-                  name="email"
-                  rules={[
-                    { required: true, message: "Please enter email" },
-                    { type: "email", message: "Please enter valid email" },
-                  ]}
-                >
-                  <Input size="large" placeholder="contact@school.com" />
-                </Form.Item>
-
-                <Form.Item
-                  label="Phone Number"
-                  name="phone"
-                  rules={[
-                    { required: true, message: "Please enter phone number" },
-                  ]}
-                >
-                  <Input size="large" placeholder="+91 9876543210" />
-                </Form.Item>
-
-                <Form.Item
-                  label="Alternate Phone Number"
-                  name="alternatePhone"
-                >
-                  <Input size="large" placeholder="+91 9876543211" />
-                </Form.Item>
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
+                  Contact Information
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <TextInput<EditProfileForm>
+                    title="Email Address"
+                    required={true}
+                    name="email"
+                    placeholder="school@example.com"
+                  />
+                  <TextInput<EditProfileForm>
+                    title="Phone Number"
+                    required={true}
+                    name="phone"
+                    placeholder="9876543210"
+                    onlynumber={true}
+                    maxlength={10}
+                  />
+                  <TextInput<EditProfileForm>
+                    title="Alternate Phone Number (Optional)"
+                    required={false}
+                    name="alternatePhone"
+                    placeholder="9876543211"
+                    onlynumber={true}
+                    maxlength={10}
+                  />
+                </div>
               </div>
-            </div>
 
-            <Divider />
-
-            {/* Operating Hours */}
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
-                Operating Hours
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <Form.Item
-                  label="Day Start Time"
-                  name="dayStartTime"
-                  rules={[
-                    { required: true, message: "Please select start time" },
-                  ]}
-                >
-                  <TimePicker
-                    size="large"
-                    className="w-full"
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
+                  Operating Hours
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <TimeInput<EditProfileForm>
+                    title="Day Start Time"
+                    required={true}
+                    name="dayStartTime"
+                    placeholder="08:00"
                     format="HH:mm"
-                    placeholder="Select start time"
                   />
-                </Form.Item>
-
-                <Form.Item
-                  label="Day End Time"
-                  name="dayEndTime"
-                  rules={[
-                    { required: true, message: "Please select end time" },
-                  ]}
-                >
-                  <TimePicker
-                    size="large"
-                    className="w-full"
+                  <TimeInput<EditProfileForm>
+                    title="Day End Time"
+                    required={true}
+                    name="dayEndTime"
+                    placeholder="20:00"
                     format="HH:mm"
-                    placeholder="Select end time"
                   />
-                </Form.Item>
-
-                <Form.Item
-                  label="Weekly Holiday"
-                  name="weeklyHoliday"
-                  rules={[
-                    { required: true, message: "Please select weekly holiday" },
-                  ]}
-                >
-                  <Select
-                    size="large"
+                  <MultiSelect<EditProfileForm>
+                    title="Weekly Holiday"
+                    required={true}
+                    name="weeklyHoliday"
                     placeholder="Select day"
-                    options={[
-                      { label: "Monday", value: "Monday" },
-                      { label: "Tuesday", value: "Tuesday" },
-                      { label: "Wednesday", value: "Wednesday" },
-                      { label: "Thursday", value: "Thursday" },
-                      { label: "Friday", value: "Friday" },
-                      { label: "Saturday", value: "Saturday" },
-                      { label: "Sunday", value: "Sunday" },
-                    ]}
+                    options={weekDays}
                   />
-                </Form.Item>
-
-                <Form.Item
-                  label="Lunch Start Time"
-                  name="lunchStartTime"
-                  rules={[
-                    {
-                      required: true,
-                      message: "Please select lunch start time",
-                    },
-                  ]}
-                >
-                  <TimePicker
-                    size="large"
-                    className="w-full"
+                  <TimeInput<EditProfileForm>
+                    title="Lunch Start Time"
+                    required={true}
+                    name="lunchStartTime"
+                    placeholder="13:00"
                     format="HH:mm"
-                    placeholder="Select lunch start time"
                   />
-                </Form.Item>
-
-                <Form.Item
-                  label="Lunch End Time"
-                  name="lunchEndTime"
-                  rules={[
-                    {
-                      required: true,
-                      message: "Please select lunch end time",
-                    },
-                  ]}
-                >
-                  <TimePicker
-                    size="large"
-                    className="w-full"
+                  <TimeInput<EditProfileForm>
+                    title="Lunch End Time"
+                    required={true}
+                    name="lunchEndTime"
+                    placeholder="14:00"
                     format="HH:mm"
-                    placeholder="Select lunch end time"
                   />
-                </Form.Item>
+                </div>
               </div>
-            </div>
 
-            <Divider />
-
-            {/* Owner/Contact Person Details */}
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
-                Owner / Contact Person
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <Form.Item
-                  label="Owner Name"
-                  name="ownerName"
-                  rules={[
-                    { required: true, message: "Please enter owner name" },
-                  ]}
-                >
-                  <Input size="large" placeholder="Enter owner name" />
-                </Form.Item>
-
-                <Form.Item
-                  label="Owner Phone"
-                  name="ownerPhone"
-                  rules={[
-                    { required: true, message: "Please enter owner phone" },
-                  ]}
-                >
-                  <Input size="large" placeholder="+91 9876543200" />
-                </Form.Item>
-
-                <Form.Item
-                  label="Owner Email"
-                  name="ownerEmail"
-                  rules={[
-                    { required: true, message: "Please enter owner email" },
-                    { type: "email", message: "Please enter valid email" },
-                  ]}
-                >
-                  <Input size="large" placeholder="owner@school.com" />
-                </Form.Item>
-              </div>
-            </div>
-
-            <Divider />
-
-            {/* Bank Details */}
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
-                Bank Details
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Form.Item
-                  label="Bank Name"
-                  name="bankName"
-                  rules={[
-                    { required: true, message: "Please enter bank name" },
-                  ]}
-                >
-                  <Input size="large" placeholder="Enter bank name" />
-                </Form.Item>
-
-                <Form.Item
-                  label="Branch Name"
-                  name="branchName"
-                  rules={[
-                    { required: true, message: "Please enter branch name" },
-                  ]}
-                >
-                  <Input size="large" placeholder="Enter branch name" />
-                </Form.Item>
-
-                <Form.Item
-                  label="Account Number"
-                  name="accountNumber"
-                  rules={[
-                    {
-                      required: true,
-                      message: "Please enter account number",
-                    },
-                  ]}
-                >
-                  <Input size="large" placeholder="Enter account number" />
-                </Form.Item>
-
-                <Form.Item
-                  label="IFSC Code"
-                  name="ifscCode"
-                  rules={[
-                    { required: true, message: "Please enter IFSC code" },
-                  ]}
-                >
-                  <Input size="large" placeholder="Enter IFSC code" />
-                </Form.Item>
-              </div>
-            </div>
-
-            <Divider />
-
-            {/* License & Certifications */}
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
-                License & Certifications
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Form.Item
-                  label="RTO License Number"
-                  name="rtoLicenseNumber"
-                  rules={[
-                    {
-                      required: true,
-                      message: "Please enter RTO license number",
-                    },
-                  ]}
-                >
-                  <Input size="large" placeholder="Enter RTO license number" />
-                </Form.Item>
-
-                <Form.Item
-                  label="RTO License Expiry Date"
-                  name="rtoLicenseExpiry"
-                  rules={[
-                    {
-                      required: true,
-                      message: "Please enter expiry date",
-                    },
-                  ]}
-                >
-                  <Input
-                    size="large"
-                    type="date"
-                    placeholder="Select expiry date"
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
+                  Owner / Contact Person
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <TextInput<EditProfileForm>
+                    title="Owner Name"
+                    required={true}
+                    name="ownerName"
+                    placeholder="Enter owner name"
                   />
-                </Form.Item>
+                  <TextInput<EditProfileForm>
+                    title="Owner Phone"
+                    required={true}
+                    name="ownerPhone"
+                    placeholder="9876543210"
+                    onlynumber={true}
+                    maxlength={10}
+                  />
+                  <TextInput<EditProfileForm>
+                    title="Owner Email"
+                    required={true}
+                    name="ownerEmail"
+                    placeholder="owner@school.com"
+                  />
+                </div>
+              </div>
 
-                <Form.Item
-                  label="Insurance Provider"
-                  name="insuranceProvider"
-                  rules={[
-                    {
-                      required: true,
-                      message: "Please enter insurance provider",
-                    },
-                  ]}
-                >
-                  <Input
-                    size="large"
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
+                  Bank Details
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <TextInput<EditProfileForm>
+                    title="Bank Name"
+                    required={true}
+                    name="bankName"
+                    placeholder="Enter bank name"
+                  />
+                  <TextInput<EditProfileForm>
+                    title="Branch Name"
+                    required={true}
+                    name="branchName"
+                    placeholder="Enter branch name"
+                  />
+                  <TextInput<EditProfileForm>
+                    title="Account Number"
+                    required={true}
+                    name="accountNumber"
+                    placeholder="Enter account number"
+                  />
+                  <TextInput<EditProfileForm>
+                    title="IFSC Code"
+                    required={true}
+                    name="ifscCode"
+                    placeholder="Enter IFSC code"
+                  />
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
+                  License & Certifications
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <TextInput<EditProfileForm>
+                    title="RTO License Number"
+                    required={true}
+                    name="rtoLicenseNumber"
+                    placeholder="Enter RTO license number"
+                  />
+                  <DateInput<EditProfileForm>
+                    title="RTO License Expiry Date (Optional)"
+                    required={false}
+                    name="rtoLicenseExpiry"
+                    placeholder="Select date"
+                    format="YYYY-MM-DD"
+                  />
+                  <TextInput<EditProfileForm>
+                    title="Insurance Provider (Optional)"
+                    required={false}
+                    name="insuranceProvider"
                     placeholder="Enter insurance provider name"
                   />
-                </Form.Item>
-
-                <Form.Item
-                  label="Insurance Policy Number"
-                  name="insurancePolicyNumber"
-                  rules={[
-                    {
-                      required: true,
-                      message: "Please enter policy number",
-                    },
-                  ]}
-                >
-                  <Input size="large" placeholder="Enter policy number" />
-                </Form.Item>
-
-                <Form.Item
-                  label="Insurance Expiry Date"
-                  name="insuranceExpiry"
-                  rules={[
-                    {
-                      required: true,
-                      message: "Please enter expiry date",
-                    },
-                  ]}
-                >
-                  <Input
-                    size="large"
-                    type="date"
-                    placeholder="Select expiry date"
+                  <TextInput<EditProfileForm>
+                    title="Insurance Policy Number (Optional)"
+                    required={false}
+                    name="insurancePolicyNumber"
+                    placeholder="Enter policy number"
                   />
-                </Form.Item>
+                  <DateInput<EditProfileForm>
+                    title="Insurance Expiry Date (Optional)"
+                    required={false}
+                    name="insuranceExpiry"
+                    placeholder="Select date"
+                    format="YYYY-MM-DD"
+                  />
+                </div>
               </div>
-            </div>
 
-            <Divider />
-
-            {/* Social Media */}
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
-                Social Media Links
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <Form.Item label="Facebook" name="facebook">
-                  <Input
-                    size="large"
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
+                  Social Media Links (Optional)
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <TextInput<EditProfileForm>
+                    title="Facebook"
+                    required={false}
+                    name="facebook"
                     placeholder="https://facebook.com/yourpage"
                   />
-                </Form.Item>
-
-                <Form.Item label="Instagram" name="instagram">
-                  <Input
-                    size="large"
+                  <TextInput<EditProfileForm>
+                    title="Instagram"
+                    required={false}
+                    name="instagram"
                     placeholder="https://instagram.com/yourpage"
                   />
-                </Form.Item>
-
-                <Form.Item label="Twitter" name="twitter">
-                  <Input
-                    size="large"
+                  <TextInput<EditProfileForm>
+                    title="Twitter"
+                    required={false}
+                    name="twitter"
                     placeholder="https://twitter.com/yourpage"
                   />
-                </Form.Item>
+                </div>
               </div>
-            </div>
 
-            {/* Form Actions */}
-            <div className="flex gap-4 pt-6 border-t">
-              <Button
-                type="default"
-                size="large"
-                onClick={() => router.push("/mtadmin/profile")}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="primary"
-                size="large"
-                htmlType="submit"
-                loading={loading}
-                icon={<AntDesignCheckOutlined />}
-                className="flex-1 !bg-blue-600"
-              >
-                Update Profile
-              </Button>
-            </div>
-          </Form>
-        </Card>
+              <div className="flex gap-4 pt-6 border-t">
+                <Button
+                  type="default"
+                  size="large"
+                  onClick={() => router.push("/mtadmin/profile")}
+                  className="flex-1"
+                  disabled={updateSchoolMutation.isPending}
+                >
+                  Cancel
+                </Button>
+                <button
+                  type="submit"
+                  disabled={methods.formState.isSubmitting || updateSchoolMutation.isPending}
+                  className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  <AntDesignCheckOutlined />
+                  {updateSchoolMutation.isPending ? "Updating..." : "Update Profile"}
+                </button>
+              </div>
+            </form>
+          </FormProvider>
+        </div>
       </div>
     </div>
   );

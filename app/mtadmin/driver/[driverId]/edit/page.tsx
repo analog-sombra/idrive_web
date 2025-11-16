@@ -1,14 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Card, Form, Input, Button, Select, DatePicker, Upload, message, InputNumber } from "antd";
+import React, { useState, useEffect, use } from "react";
+import { Card, Form, Input, Button, Select, DatePicker, message, InputNumber, Spin } from "antd";
 import {
   IcBaselineArrowBack,
   AntDesignCheckOutlined,
-  AntDesignPlusCircleOutlined,
 } from "@/components/icons";
 import { useRouter } from "next/navigation";
-import type { UploadFile } from "antd";
+import { getDriverById, updateDriver } from "@/services/driver.api";
 import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
 
@@ -18,70 +17,125 @@ interface DriverFormValues {
   name: string;
   email: string;
   mobile: string;
-  dateOfBirth: Dayjs;
-  bloodGroup: string;
-  gender: string;
-  address: string;
+  alternatePhone?: string;
+  dateOfBirth?: Dayjs;
+  bloodGroup?: string;
+  gender?: string;
+  address?: string;
   licenseNumber: string;
-  licenseIssueDate: Dayjs;
-  licenseExpiryDate: Dayjs;
-  licenseType: string;
-  experience: number;
-  joiningDate: Dayjs;
-  salary: number;
+  licenseIssueDate?: Dayjs;
+  licenseExpiryDate?: Dayjs;
+  licenseType?: string;
+  experience?: number;
+  joiningDate?: Dayjs;
+  salary?: number;
   status: string;
-  emergencyContactName: string;
-  emergencyContactNumber: string;
-  emergencyContactRelation: string;
+  emergencyContactName?: string;
+  emergencyContactNumber?: string;
+  emergencyContactRelation?: string;
 }
 
-const EditDriverPage = ({ params }: { params: { driverId: string } }) => {
+const EditDriverPage = ({ params }: { params: Promise<{ driverId: string }> }) => {
   const router = useRouter();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
-  const [profileImage, setProfileImage] = useState<UploadFile[]>([]);
-  const [licenseImage, setLicenseImage] = useState<UploadFile[]>([]);
+  const [fetching, setFetching] = useState(true);
 
-  // Mock driver data - in real app, fetch from API
+  // Unwrap params (Next.js 15+ async params)
+  const { driverId } = use(params);
+  
+  // Parse the numeric driver ID from the URL parameter
+  const numericDriverId = parseInt(driverId);
+
+  // Load existing driver data
   useEffect(() => {
-    const mockDriverData = {
-      name: "Ramesh Kumar",
-      email: "ramesh.kumar@idrive.com",
-      mobile: "9876543210",
-      dateOfBirth: dayjs("1985-05-15"),
-      bloodGroup: "B+",
-      gender: "male",
-      address: "House No. 456, Sector 22, Rohini, New Delhi - 110086",
-      licenseNumber: "DL-0320190012345",
-      licenseIssueDate: dayjs("2019-03-15"),
-      licenseExpiryDate: dayjs("2039-03-14"),
-      licenseType: "LMV",
-      experience: 8,
-      joiningDate: dayjs("2023-01-15"),
-      salary: 25000,
-      status: "active",
-      emergencyContactName: "Sunita Kumar",
-      emergencyContactNumber: "9876543299",
-      emergencyContactRelation: "spouse",
+    const fetchDriverData = async () => {
+      setFetching(true);
+      try {
+        const response = await getDriverById(numericDriverId);
+        
+        if (response.status && response.data.getDriverById) {
+          const driver = response.data.getDriverById;
+          form.setFieldsValue({
+            name: driver.name,
+            email: driver.email,
+            mobile: driver.mobile,
+            alternatePhone: driver.alternatePhone || '',
+            dateOfBirth: driver.dateOfBirth ? dayjs(driver.dateOfBirth) : undefined,
+            bloodGroup: driver.bloodGroup || '',
+            gender: driver.gender || '',
+            address: driver.address || '',
+            licenseNumber: driver.licenseNumber,
+            licenseIssueDate: driver.licenseIssueDate ? dayjs(driver.licenseIssueDate) : undefined,
+            licenseExpiryDate: driver.licenseExpiryDate ? dayjs(driver.licenseExpiryDate) : undefined,
+            licenseType: driver.licenseType || '',
+            experience: driver.experience || undefined,
+            joiningDate: driver.joiningDate ? dayjs(driver.joiningDate) : undefined,
+            salary: driver.salary || undefined,
+            status: driver.status,
+            emergencyContactName: driver.emergencyContactName || '',
+            emergencyContactNumber: driver.emergencyContactNumber || '',
+            emergencyContactRelation: driver.emergencyContactRelation || '',
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching driver:", error);
+        message.error("Failed to load driver data");
+      } finally {
+        setFetching(false);
+      }
     };
-    
-    form.setFieldsValue(mockDriverData);
-  }, [form]);
+
+    fetchDriverData();
+  }, [form, numericDriverId]);
 
   const handleSubmit = async (values: DriverFormValues) => {
     setLoading(true);
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      console.log("Updated values:", values);
-      message.success("Driver updated successfully!");
-      router.push(`/mtadmin/driver/${params.driverId}`);
-    } catch {
+      const response = await updateDriver({
+        id: numericDriverId,
+        name: values.name,
+        email: values.email,
+        mobile: values.mobile,
+        alternatePhone: values.alternatePhone,
+        dateOfBirth: values.dateOfBirth?.toDate(),
+        bloodGroup: values.bloodGroup,
+        gender: values.gender,
+        address: values.address,
+        licenseNumber: values.licenseNumber,
+        licenseType: values.licenseType,
+        licenseIssueDate: values.licenseIssueDate?.toDate(),
+        licenseExpiryDate: values.licenseExpiryDate?.toDate(),
+        experience: values.experience,
+        joiningDate: values.joiningDate?.toDate(),
+        salary: values.salary,
+        status: values.status as "ACTIVE" | "INACTIVE" | "ON_LEAVE" | "SUSPENDED",
+        emergencyContactName: values.emergencyContactName,
+        emergencyContactNumber: values.emergencyContactNumber,
+        emergencyContactRelation: values.emergencyContactRelation,
+      });
+      
+      if (response.status && response.data.updateDriver) {
+        message.success("Driver updated successfully!");
+        router.push(`/mtadmin/driver/${driverId}`);
+      } else {
+        message.error(response.message || "Failed to update driver");
+      }
+    } catch (error) {
+      console.error("Error updating driver:", error);
       message.error("Failed to update driver. Please try again.");
     } finally {
       setLoading(false);
     }
   };
+
+  if (fetching) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Spin size="large" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -91,7 +145,7 @@ const EditDriverPage = ({ params }: { params: { driverId: string } }) => {
           <div className="flex items-center gap-4 mb-2">
             <Button
               icon={<IcBaselineArrowBack className="text-lg" />}
-              onClick={() => router.push(`/mtadmin/driver/${params.driverId}`)}
+              onClick={() => router.push(`/mtadmin/driver/${driverId}`)}
               size="large"
             >
               Back to Driver Profile
@@ -100,7 +154,7 @@ const EditDriverPage = ({ params }: { params: { driverId: string } }) => {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Edit Driver</h1>
             <p className="text-gray-600 mt-1 text-sm">
-              Update driver information - ID: {params.driverId}
+              Update driver information - ID: {driverId}
             </p>
           </div>
         </div>
@@ -164,11 +218,25 @@ const EditDriverPage = ({ params }: { params: { driverId: string } }) => {
                 </Form.Item>
 
                 <Form.Item
-                  label="Date of Birth"
-                  name="dateOfBirth"
+                  label="Alternate Phone Number (Optional)"
+                  name="alternatePhone"
                   rules={[
-                    { required: true, message: "Please select date of birth" },
+                    {
+                      pattern: /^[0-9]{10}$/,
+                      message: "Please enter valid 10-digit mobile number",
+                    },
                   ]}
+                >
+                  <Input
+                    size="large"
+                    placeholder="Enter 10-digit alternate mobile number"
+                    maxLength={10}
+                  />
+                </Form.Item>
+
+                <Form.Item
+                  label="Date of Birth (Optional)"
+                  name="dateOfBirth"
                 >
                   <DatePicker
                     size="large"
@@ -179,11 +247,8 @@ const EditDriverPage = ({ params }: { params: { driverId: string } }) => {
                 </Form.Item>
 
                 <Form.Item
-                  label="Blood Group"
+                  label="Blood Group (Optional)"
                   name="bloodGroup"
-                  rules={[
-                    { required: true, message: "Please select blood group" },
-                  ]}
                 >
                   <Select
                     size="large"
@@ -202,26 +267,24 @@ const EditDriverPage = ({ params }: { params: { driverId: string } }) => {
                 </Form.Item>
 
                 <Form.Item
-                  label="Gender"
+                  label="Gender (Optional)"
                   name="gender"
-                  rules={[{ required: true, message: "Please select gender" }]}
                 >
                   <Select
                     size="large"
                     placeholder="Select gender"
                     options={[
-                      { label: "Male", value: "male" },
-                      { label: "Female", value: "female" },
-                      { label: "Other", value: "other" },
+                      { label: "Male", value: "Male" },
+                      { label: "Female", value: "Female" },
+                      { label: "Other", value: "Other" },
                     ]}
                   />
                 </Form.Item>
 
                 <Form.Item
-                  label="Address"
+                  label="Address (Optional)"
                   name="address"
                   className="md:col-span-2"
-                  rules={[{ required: true, message: "Please enter address" }]}
                 >
                   <TextArea
                     rows={3}
@@ -251,14 +314,8 @@ const EditDriverPage = ({ params }: { params: { driverId: string } }) => {
                 </Form.Item>
 
                 <Form.Item
-                  label="License Issue Date"
+                  label="License Issue Date (Optional)"
                   name="licenseIssueDate"
-                  rules={[
-                    {
-                      required: true,
-                      message: "Please select license issue date",
-                    },
-                  ]}
                 >
                   <DatePicker
                     size="large"
@@ -269,14 +326,8 @@ const EditDriverPage = ({ params }: { params: { driverId: string } }) => {
                 </Form.Item>
 
                 <Form.Item
-                  label="License Expiry Date"
+                  label="License Expiry Date (Optional)"
                   name="licenseExpiryDate"
-                  rules={[
-                    {
-                      required: true,
-                      message: "Please select license expiry date",
-                    },
-                  ]}
                 >
                   <DatePicker
                     size="large"
@@ -287,11 +338,8 @@ const EditDriverPage = ({ params }: { params: { driverId: string } }) => {
                 </Form.Item>
 
                 <Form.Item
-                  label="License Type"
+                  label="License Type (Optional)"
                   name="licenseType"
-                  rules={[
-                    { required: true, message: "Please select license type" },
-                  ]}
                 >
                   <Select
                     size="large"
@@ -304,24 +352,6 @@ const EditDriverPage = ({ params }: { params: { driverId: string } }) => {
                     ]}
                   />
                 </Form.Item>
-
-                <Form.Item
-                  label="Upload License Copy"
-                  name="licenseUpload"
-                  className="md:col-span-2"
-                >
-                  <Upload
-                    listType="picture"
-                    fileList={licenseImage}
-                    onChange={({ fileList }) => setLicenseImage(fileList)}
-                    beforeUpload={() => false}
-                    maxCount={1}
-                  >
-                    <Button icon={<AntDesignPlusCircleOutlined />} size="large">
-                      Upload License Image
-                    </Button>
-                  </Upload>
-                </Form.Item>
               </div>
             </div>
 
@@ -332,11 +362,8 @@ const EditDriverPage = ({ params }: { params: { driverId: string } }) => {
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Form.Item
-                  label="Years of Experience"
+                  label="Years of Experience (Optional)"
                   name="experience"
-                  rules={[
-                    { required: true, message: "Please enter experience" },
-                  ]}
                 >
                   <InputNumber
                     size="large"
@@ -348,11 +375,8 @@ const EditDriverPage = ({ params }: { params: { driverId: string } }) => {
                 </Form.Item>
 
                 <Form.Item
-                  label="Joining Date"
+                  label="Joining Date (Optional)"
                   name="joiningDate"
-                  rules={[
-                    { required: true, message: "Please select joining date" },
-                  ]}
                 >
                   <DatePicker
                     size="large"
@@ -363,9 +387,8 @@ const EditDriverPage = ({ params }: { params: { driverId: string } }) => {
                 </Form.Item>
 
                 <Form.Item
-                  label="Salary"
+                  label="Salary (Optional)"
                   name="salary"
-                  rules={[{ required: true, message: "Please enter salary" }]}
                 >
                   <InputNumber
                     size="large"
@@ -385,32 +408,12 @@ const EditDriverPage = ({ params }: { params: { driverId: string } }) => {
                     size="large"
                     placeholder="Select status"
                     options={[
-                      { label: "Active", value: "active" },
-                      { label: "Inactive", value: "inactive" },
-                      { label: "On Leave", value: "on-leave" },
+                      { label: "Active", value: "ACTIVE" },
+                      { label: "Inactive", value: "INACTIVE" },
+                      { label: "On Leave", value: "ON_LEAVE" },
+                      { label: "Suspended", value: "SUSPENDED" },
                     ]}
                   />
-                </Form.Item>
-
-                <Form.Item
-                  label="Upload Profile Photo"
-                  name="profilePhoto"
-                  className="md:col-span-2"
-                >
-                  <Upload
-                    listType="picture-card"
-                    fileList={profileImage}
-                    onChange={({ fileList }) => setProfileImage(fileList)}
-                    beforeUpload={() => false}
-                    maxCount={1}
-                  >
-                    {profileImage.length === 0 && (
-                      <div>
-                        <AntDesignPlusCircleOutlined className="text-2xl" />
-                        <div className="mt-2">Upload Photo</div>
-                      </div>
-                    )}
-                  </Upload>
                 </Form.Item>
               </div>
             </div>
@@ -422,26 +425,16 @@ const EditDriverPage = ({ params }: { params: { driverId: string } }) => {
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Form.Item
-                  label="Emergency Contact Name"
+                  label="Emergency Contact Name (Optional)"
                   name="emergencyContactName"
-                  rules={[
-                    {
-                      required: true,
-                      message: "Please enter emergency contact name",
-                    },
-                  ]}
                 >
                   <Input size="large" placeholder="Enter contact name" />
                 </Form.Item>
 
                 <Form.Item
-                  label="Emergency Contact Number"
+                  label="Emergency Contact Number (Optional)"
                   name="emergencyContactNumber"
                   rules={[
-                    {
-                      required: true,
-                      message: "Please enter emergency contact number",
-                    },
                     {
                       pattern: /^[0-9]{10}$/,
                       message: "Please enter valid 10-digit mobile number",
@@ -456,22 +449,19 @@ const EditDriverPage = ({ params }: { params: { driverId: string } }) => {
                 </Form.Item>
 
                 <Form.Item
-                  label="Relationship"
+                  label="Relationship (Optional)"
                   name="emergencyContactRelation"
-                  rules={[
-                    { required: true, message: "Please enter relationship" },
-                  ]}
                 >
                   <Select
                     size="large"
                     placeholder="Select relationship"
                     options={[
-                      { label: "Father", value: "father" },
-                      { label: "Mother", value: "mother" },
-                      { label: "Spouse", value: "spouse" },
-                      { label: "Sibling", value: "sibling" },
-                      { label: "Friend", value: "friend" },
-                      { label: "Other", value: "other" },
+                      { label: "Father", value: "Father" },
+                      { label: "Mother", value: "Mother" },
+                      { label: "Spouse", value: "Spouse" },
+                      { label: "Sibling", value: "Sibling" },
+                      { label: "Friend", value: "Friend" },
+                      { label: "Other", value: "Other" },
                     ]}
                   />
                 </Form.Item>
@@ -483,7 +473,7 @@ const EditDriverPage = ({ params }: { params: { driverId: string } }) => {
               <Button
                 type="default"
                 size="large"
-                onClick={() => router.push(`/mtadmin/driver/${params.driverId}`)}
+                onClick={() => router.push(`/mtadmin/driver/${driverId}`)}
                 className="flex-1"
               >
                 Cancel

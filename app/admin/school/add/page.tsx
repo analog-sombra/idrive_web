@@ -1,50 +1,145 @@
 "use client";
 
-import { useState } from "react";
-import { Card, Form, Input, Button, message, Upload } from "antd";
+import { FormProvider, useForm } from "react-hook-form";
+import { valibotResolver } from "@hookform/resolvers/valibot";
+import { onFormError } from "@/utils/methods";
+import { useRouter } from "next/navigation";
+import { useMutation } from "@tanstack/react-query";
+import { ApiCall } from "@/services/api";
+import { toast } from "react-toastify";
+import { AddSchoolForm, AddSchoolSchema } from "@/schema/addschool";
+import { TextInput } from "@/components/form/inputfields/textinput";
+import { TaxtAreaInput } from "@/components/form/inputfields/textareainput";
 import {
   IcBaselineArrowBack,
   AntDesignCheckOutlined,
-  AntDesignPlusCircleOutlined,
 } from "@/components/icons";
-import { useRouter } from "next/navigation";
-import type { UploadFile } from "antd";
+import { Button } from "antd";
 
-const { TextArea } = Input;
-
-interface SchoolFormValues {
+type CreateSchoolResponse = {
+  id: number;
   name: string;
   email: string;
   phone: string;
-  alternatePhone: string;
-  address: string;
-  registrationNumber: string;
-  gstNumber: string;
-  establishedYear: string;
-  website: string;
-}
+};
+
+type CreateUserResponse = {
+  id: string;
+  contact1: string;
+  role: string;
+};
 
 const AddSchoolPage = () => {
   const router = useRouter();
-  const [form] = Form.useForm();
-  const [loading, setLoading] = useState(false);
-  const [logoImage, setLogoImage] = useState<UploadFile[]>([]);
+  const methods = useForm<AddSchoolForm>({
+    resolver: valibotResolver(AddSchoolSchema),
+    defaultValues: {
+      website: "https://www.",
+    },
+  });
 
-  const handleSubmit = async (values: SchoolFormValues) => {
-    setLoading(true);
-    try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      console.log("Form values:", values);
-      message.success(
-        "School added successfully! School admin can now complete the remaining details."
+  const createSchoolWithUser = useMutation({
+    mutationKey: ["createSchoolWithUser"],
+    mutationFn: async (data: AddSchoolForm) => {
+      console.log("Form Data:", data);
+      // First, create the school
+      const schoolResponse = await ApiCall({
+        query: `mutation CreateSchool($inputType: CreateSchoolInput!) {
+          createSchool(inputType: $inputType) {
+            id
+            name
+            email
+            phone
+          }
+        }`,
+        variables: {
+          inputType: {
+            name: data.name,
+            email: data.email,
+            phone: data.phone,
+            alternatePhone: data.alternatePhone || null,
+            address: data.address,
+            registrationNumber: data.registrationNumber,
+            gstNumber: data.gstNumber || null,
+            establishedYear: data.establishedYear,
+            website: data.website || null,
+          },
+        },
+      });
+
+      if (!schoolResponse.status) {
+        throw new Error(schoolResponse.message || "Failed to create school");
+      }
+
+      const school = (schoolResponse.data as Record<string, unknown>)[
+        "createSchool"
+      ] as CreateSchoolResponse;
+
+      if (!school) {
+        throw new Error("School not created");
+      }
+
+      // Generate password: first 4 letters of school name (first capital, rest lowercase) + @ + last 4 digits of phone
+      const schoolNamePart = data.name.substring(0, 4);
+      const formattedSchoolName =
+        schoolNamePart.charAt(0).toUpperCase() +
+        schoolNamePart.slice(1).toLowerCase();
+      const last4Digits = data.phone.slice(-4);
+      const generatedPassword = `${formattedSchoolName}@${last4Digits}`;
+
+      console.log({
+        contact1: data.phone,
+        password: generatedPassword,
+        role: "MT_ADMIN",
+        name: data.name,
+        schoolId: school.id,
+      });
+
+      // Create user for the school with MTADMIN role
+      const userResponse = await ApiCall({
+        query: `mutation CreateUser($inputType: CreateUserInput!) {
+          createUser(inputType: $inputType) {
+            id
+            contact1
+            role
+          }
+        }`,
+        variables: {
+          inputType: {
+            contact1: data.phone,
+            password: generatedPassword,
+            role: "MT_ADMIN",
+            name: data.name,
+            schoolId: school.id,
+          },
+        },
+      });
+      console.log("User creation response:", userResponse);
+
+      if (!userResponse.status) {
+        throw new Error(userResponse.message || "Failed to create user");
+      }
+
+      const user = (userResponse.data as Record<string, unknown>)[
+        "createUser"
+      ] as CreateUserResponse;
+
+      return { school, user, generatedPassword };
+    },
+
+    onSuccess: (data) => {
+      toast.success(
+        `School created successfully! Login credentials - Phone: ${data.school.phone}, Password: ${data.generatedPassword}`
       );
       router.push("/admin/school");
-    } catch {
-      message.error("Failed to add school. Please try again.");
-    } finally {
-      setLoading(false);
-    }
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const onSubmit = async (data: AddSchoolForm) => {
+    createSchoolWithUser.mutate(data);
   };
 
   return (
@@ -62,9 +157,7 @@ const AddSchoolPage = () => {
             </Button>
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              Add New School
-            </h1>
+            <h1 className="text-2xl font-bold text-gray-900">Add New School</h1>
             <p className="text-gray-600 mt-1 text-sm">
               Create a new driving school. School admin will complete remaining
               details after registration.
@@ -74,261 +167,153 @@ const AddSchoolPage = () => {
       </div>
 
       <div className="px-8 py-6">
-        <Card className="shadow-sm max-w-4xl mx-auto">
-          <Form
-            form={form}
-            layout="vertical"
-            onFinish={handleSubmit}
-            autoComplete="off"
-          >
-            {/* School Logo */}
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
-                School Logo
-              </h3>
-              <Form.Item label="Upload School Logo (Optional)" name="logo">
-                <Upload
-                  listType="picture-card"
-                  fileList={logoImage}
-                  onChange={({ fileList }) => setLogoImage(fileList)}
-                  beforeUpload={() => false}
-                  maxCount={1}
-                >
-                  {logoImage.length === 0 && (
-                    <div>
-                      <AntDesignPlusCircleOutlined className="text-2xl" />
-                      <div className="mt-2">Upload Logo</div>
-                    </div>
-                  )}
-                </Upload>
-                <p className="text-xs text-gray-500 mt-2">
-                  Recommended size: 200x200 pixels. Max size: 2MB
-                </p>
-              </Form.Item>
-            </div>
-
-            {/* Basic Information */}
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
-                Basic Information
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Form.Item
-                  label="School Name"
-                  name="name"
-                  className="md:col-span-2"
-                  rules={[
-                    { required: true, message: "Please enter school name" },
-                    {
-                      min: 5,
-                      message: "School name must be at least 5 characters",
-                    },
-                  ]}
-                >
-                  <Input
-                    size="large"
+        <div className="shadow-sm max-w-4xl mx-auto bg-white rounded-lg p-8">
+          <FormProvider {...methods}>
+            <form
+              onSubmit={methods.handleSubmit(onSubmit, onFormError)}
+              className="space-y-6"
+            >
+              {/* Basic Information */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
+                  Basic Information
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <TextInput<AddSchoolForm>
+                    title="School Name"
+                    required={true}
+                    name="name"
                     placeholder="Enter school name (e.g., iDrive Driving School - Rohini)"
                   />
-                </Form.Item>
 
-                <Form.Item
-                  label="Registration Number"
-                  name="registrationNumber"
-                  rules={[
-                    {
-                      required: true,
-                      message: "Please enter registration number",
-                    },
-                  ]}
-                >
-                  <Input
-                    size="large"
+                  <TextInput<AddSchoolForm>
+                    title="Registration Number"
+                    required={true}
+                    name="registrationNumber"
                     placeholder="Enter registration number (e.g., DL/DS/2022/12345)"
                   />
-                </Form.Item>
 
-                <Form.Item
-                  label="GST Number"
-                  name="gstNumber"
-                  rules={[
-                    { required: true, message: "Please enter GST number" },
-                    {
-                      pattern: /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/,
-                      message: "Please enter valid GST number",
-                    },
-                  ]}
-                >
-                  <Input
-                    size="large"
+                  <TextInput<AddSchoolForm>
+                    title="GST Number (Optional)"
+                    required={false}
+                    name="gstNumber"
                     placeholder="Enter GST number (e.g., 07AABCI1234F1Z5)"
-                    maxLength={15}
+                    maxlength={15}
                   />
-                </Form.Item>
 
-                <Form.Item
-                  label="Established Year"
-                  name="establishedYear"
-                  rules={[
-                    {
-                      required: true,
-                      message: "Please enter established year",
-                    },
-                    {
-                      pattern: /^(19|20)\d{2}$/,
-                      message: "Please enter valid year (e.g., 2022)",
-                    },
-                  ]}
-                >
-                  <Input
-                    size="large"
+                  <TextInput<AddSchoolForm>
+                    title="Established Year"
+                    required={true}
+                    name="establishedYear"
                     placeholder="Enter year (e.g., 2022)"
-                    maxLength={4}
+                    maxlength={4}
+                    onlynumber={true}
                   />
-                </Form.Item>
 
-                <Form.Item
-                  label="Website"
-                  name="website"
-                  rules={[
-                    { required: true, message: "Please enter website URL" },
-                    { type: "url", message: "Please enter valid URL" },
-                  ]}
-                >
-                  <Input
-                    size="large"
+                  <TextInput<AddSchoolForm>
+                    title="Website (Optional)"
+                    required={false}
+                    name="website"
                     placeholder="https://www.yourschool.com"
                   />
-                </Form.Item>
 
-                <Form.Item
-                  label="Address"
-                  name="address"
-                  className="md:col-span-2"
-                  rules={[
-                    { required: true, message: "Please enter address" },
-                    {
-                      min: 10,
-                      message: "Address must be at least 10 characters",
-                    },
-                  ]}
-                >
-                  <TextArea
-                    rows={3}
-                    placeholder="Enter complete address with city and state"
-                  />
-                </Form.Item>
+                  <div className="md:col-span-2">
+                    <TaxtAreaInput<AddSchoolForm>
+                      title="Address"
+                      required={true}
+                      name="address"
+                      placeholder="Enter complete address with city and state"
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
 
-            {/* Contact Information */}
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
-                Contact Information
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Form.Item
-                  label="Email Address"
-                  name="email"
-                  rules={[
-                    { required: true, message: "Please enter email address" },
-                    {
-                      type: "email",
-                      message: "Please enter valid email address",
-                    },
-                  ]}
-                >
-                  <Input
-                    size="large"
+              {/* Contact Information */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
+                  Contact Information
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <TextInput<AddSchoolForm>
+                    title="Email Address"
+                    required={true}
+                    name="email"
                     placeholder="school@example.com"
-                    type="email"
                   />
-                </Form.Item>
 
-                <Form.Item
-                  label="Phone Number"
-                  name="phone"
-                  rules={[
-                    { required: true, message: "Please enter phone number" },
-                    {
-                      pattern: /^[+]?[0-9]{10,15}$/,
-                      message: "Please enter valid phone number",
-                    },
-                  ]}
-                >
-                  <Input
-                    size="large"
-                    placeholder="+91 9876543210"
-                    maxLength={15}
+                  <TextInput<AddSchoolForm>
+                    title="Phone Number"
+                    required={true}
+                    name="phone"
+                    placeholder="+919876543210"
+                    onlynumber={true}
+                    maxlength={10}
                   />
-                </Form.Item>
 
-                <Form.Item
-                  label="Alternate Phone Number (Optional)"
-                  name="alternatePhone"
-                  rules={[
-                    {
-                      pattern: /^[+]?[0-9]{10,15}$/,
-                      message: "Please enter valid phone number",
-                    },
-                  ]}
-                >
-                  <Input
-                    size="large"
-                    placeholder="+91 9876543211"
-                    maxLength={15}
+                  <TextInput<AddSchoolForm>
+                    title="Alternate Phone Number (Optional)"
+                    required={false}
+                    name="alternatePhone"
+                    placeholder="+919876543211"
+                    onlynumber={true}
+                    maxlength={10}
                   />
-                </Form.Item>
+                </div>
               </div>
-            </div>
 
-            {/* Information Note */}
-            <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h4 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
-                <span className="text-lg">ℹ️</span>
-                Important Information
-              </h4>
-              <ul className="text-sm text-blue-800 space-y-1 ml-6 list-disc">
-                <li>
-                  After creating the school, an account will be created for the
-                  school admin
-                </li>
-                <li>
-                  Login credentials will be sent to the registered email address
-                </li>
-                <li>
-                  School admin can complete remaining details like operating
-                  hours, bank details, license information, etc.
-                </li>
-                <li>
-                  School admin will have full control to manage their school
-                  operations
-                </li>
-              </ul>
-            </div>
+              {/* Information Note */}
+              <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                  <span className="text-lg">ℹ️</span>
+                  Important Information
+                </h4>
+                <ul className="text-sm text-blue-800 space-y-1 ml-6 list-disc">
+                  <li>
+                    After creating the school, an MT Admin account will be
+                    created automatically
+                  </li>
+                  <li>
+                    Login credentials will be: Phone Number & Password (first 4
+                    letters of school name + @ + last 4 digits of phone)
+                  </li>
+                  <li>
+                    Example: School Name &quot;iDrive School&quot; & Phone
+                    &quot;9876543210&quot; → Password: &quot;Idri@3210&quot;
+                  </li>
+                  <li>
+                    School admin can complete remaining details like operating
+                    hours, bank details, license information, etc.
+                  </li>
+                </ul>
+              </div>
 
-            {/* Form Actions */}
-            <div className="flex gap-4 pt-6 border-t">
-              <Button
-                type="default"
-                size="large"
-                onClick={() => router.push("/admin/school")}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="primary"
-                size="large"
-                htmlType="submit"
-                loading={loading}
-                icon={<AntDesignCheckOutlined />}
-                className="flex-1 !bg-gradient-to-r from-indigo-600 to-blue-600 border-0"
-              >
-                Create School
-              </Button>
-            </div>
-          </Form>
-        </Card>
+              {/* Form Actions */}
+              <div className="flex gap-4 pt-6 border-t">
+                <Button
+                  type="default"
+                  size="large"
+                  onClick={() => router.push("/admin/school")}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <button
+                  type="submit"
+                  disabled={
+                    methods.formState.isSubmitting ||
+                    createSchoolWithUser.isPending
+                  }
+                  className="flex-1 px-4 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  <AntDesignCheckOutlined />
+                  {createSchoolWithUser.isPending
+                    ? "Creating..."
+                    : "Create School"}
+                </button>
+              </div>
+            </form>
+          </FormProvider>
+        </div>
       </div>
     </div>
   );
