@@ -39,7 +39,7 @@ import { toast } from "react-toastify";
 import { AddSyllabusForm, AddSyllabusSchema } from "@/schema/addsyllabus";
 import { EditSyllabusForm, EditSyllabusSchema } from "@/schema/editsyllabus";
 import { TextInput } from "@/components/form/inputfields/textinput";
-import { Select } from "@/components/form/inputfields/select";
+import { MultiSelect } from "@/components/form/inputfields/multiselect";
 import { TaxtAreaInput } from "@/components/form/inputfields/textareainput";
 
 const CourseDetailPage = ({
@@ -97,7 +97,7 @@ const CourseDetailPage = ({
   }
 
   const totalDurationDays = Math.ceil(
-    (courseData.courseDays * courseData.hoursPerDay) / 60
+    (courseData.courseDays * courseData.minsPerDay) / 60
   );
   const progressPercentage =
     (courseData.sessionsCompleted / courseData.courseDays) * 100;
@@ -206,7 +206,7 @@ const CourseDetailPage = ({
               </Tag>
             </Descriptions.Item>
             <Descriptions.Item label="Hours Per Day">
-              {courseData.hoursPerDay} minutes
+              {courseData.minsPerDay} minutes
             </Descriptions.Item>
             <Descriptions.Item label="Course Days">
               {courseData.courseDays} days
@@ -616,10 +616,11 @@ const SyllabusManagement = ({
         <FormProvider {...addMethods}>
           <form onSubmit={addMethods.handleSubmit(handleAddSubmit, onFormError)}>
             <div className="space-y-4 mt-4">
-              <Select<AddSyllabusForm>
+              <MultiSelect<AddSyllabusForm>
                 name="dayNumber"
                 title="Select Day"
-                required
+                placeholder="Select a day"
+                required={true}
                 options={availableDays.map((day) => ({
                   label: `Day ${day}`,
                   value: day.toString(),
@@ -711,10 +712,11 @@ const SyllabusManagement = ({
         <FormProvider {...editMethods}>
           <form onSubmit={editMethods.handleSubmit(handleEditSubmit, onFormError)}>
             <div className="space-y-4 mt-4">
-              <Select<EditSyllabusForm>
+              <MultiSelect<EditSyllabusForm>
                 name="dayNumber"
                 title="Select Day"
-                required
+                placeholder="Select a day"
+                required={true}
                 options={getEditDayOptions(editingSyllabus?.dayNumber || 1).map((day) => ({
                   label: `Day ${day}`,
                   value: day.toString(),

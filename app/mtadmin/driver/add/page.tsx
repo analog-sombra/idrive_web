@@ -9,7 +9,7 @@ import { toast } from "react-toastify";
 import { AddDriverForm, AddDriverSchema } from "@/schema/adddriver";
 import { TextInput } from "@/components/form/inputfields/textinput";
 import { DateInput } from "@/components/form/inputfields/dateinput";
-import { Select } from "@/components/form/inputfields/select";
+import { MultiSelect } from "@/components/form/inputfields/multiselect";
 import { TaxtAreaInput } from "@/components/form/inputfields/textareainput";
 import { Button, Card, Modal } from "antd";
 import {
@@ -243,7 +243,7 @@ const AddDriverPage = () => {
                     />
                   </div>
                   <div>
-                    <Select<AddDriverForm>
+                    <MultiSelect<AddDriverForm>
                       name="bloodGroup"
                       title="Blood Group (Optional)"
                       placeholder="Select blood group"
@@ -261,7 +261,7 @@ const AddDriverPage = () => {
                     />
                   </div>
                   <div>
-                    <Select<AddDriverForm>
+                    <MultiSelect<AddDriverForm>
                       name="gender"
                       title="Gender"
                       placeholder="Select gender"
@@ -299,7 +299,7 @@ const AddDriverPage = () => {
                     />
                   </div>
                   <div>
-                    <Select<AddDriverForm>
+                    <MultiSelect<AddDriverForm>
                       name="licenseType"
                       title="License Type"
                       placeholder="Select license type"
@@ -392,7 +392,7 @@ const AddDriverPage = () => {
                     />
                   </div>
                   <div>
-                    <Select<AddDriverForm>
+                    <MultiSelect<AddDriverForm>
                       name="emergencyContactRelation"
                       title="Relationship (Optional)"
                       placeholder="Select relationship"

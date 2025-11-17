@@ -220,6 +220,7 @@ export const searchUser = async (whereSearchInput: {
   email?: string;
   name?: string;
   schoolId?: number;
+  role?: string;
 }) => {
   return ApiCall<SearchUser>({
     query: SEARCH_USER,
@@ -227,10 +228,10 @@ export const searchUser = async (whereSearchInput: {
   });
 };
 
-export const searchUserByContact = async (contact: string, schoolId?: number) => {
+export const searchUserByContact = async (contact: string, role?: string) => {
   return searchUser({
     contact1: contact,
-    schoolId,
+    role: role || "USER", // Default to USER role to get customers across all schools
   });
 };
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, Table, Input, Button, Tag, Space, Select, Avatar, message } from "antd";
+import { Card, Table, Input, Button, Tag, Space, Select, Avatar } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import {
   AntDesignEyeOutlined,
@@ -12,6 +12,7 @@ import {
 } from "@/components/icons";
 import { useRouter } from "next/navigation";
 import { getPaginatedSchools, School } from "@/services/school.api";
+import { toast } from "react-toastify";
 
 const { Search } = Input;
 
@@ -34,12 +35,12 @@ const SchoolsListPage = () => {
       // Build where clause for filtering
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const where: any = {};
-      
+
       // Status filter
       if (filterStatus !== "all") {
         where.status = filterStatus as SchoolStatus;
       }
-      
+
       // Search filter
       if (searchText.trim()) {
         where.OR = [
@@ -66,11 +67,11 @@ const SchoolsListPage = () => {
         setSchools(schoolData.data || []);
         setTotal(schoolData.total || 0);
       } else {
-        message.error(response.message || "Failed to fetch schools");
+        toast.error(response.message || "Failed to fetch schools");
       }
     } catch (error) {
       console.error("Error fetching schools:", error);
-      message.error("Failed to load schools");
+      toast.error("Failed to load schools");
     } finally {
       setLoading(false);
     }
@@ -133,27 +134,21 @@ const SchoolsListPage = () => {
       key: "totalStudents",
       width: 100,
       align: "center",
-      render: () => (
-        <span className="font-semibold text-purple-600">-</span>
-      ),
+      render: () => <span className="font-semibold text-purple-600">-</span>,
     },
     {
       title: "Instructors",
       key: "totalInstructors",
       width: 110,
       align: "center",
-      render: () => (
-        <span className="font-semibold text-blue-600">-</span>
-      ),
+      render: () => <span className="font-semibold text-blue-600">-</span>,
     },
     {
       title: "Vehicles",
       key: "totalVehicles",
       width: 100,
       align: "center",
-      render: () => (
-        <span className="font-semibold text-green-600">-</span>
-      ),
+      render: () => <span className="font-semibold text-green-600">-</span>,
     },
     {
       title: "Status",
@@ -198,9 +193,7 @@ const SchoolsListPage = () => {
           <Button
             type="primary"
             icon={<AntDesignEditOutlined />}
-            onClick={() =>
-              router.push(`/admin/school/${record.id}/edit`)
-            }
+            onClick={() => router.push(`/admin/school/${record.id}/edit`)}
             className="!bg-blue-600"
           >
             Edit

@@ -12,7 +12,6 @@ import {
   Form,
   InputNumber,
   Input,
-  message,
   Statistic,
   Spin,
 } from "antd";
@@ -29,6 +28,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { getDriverWithHistory, type LeaveHistory, type SalaryHistory } from "@/services/driver.api";
+import { toast } from "react-toastify";
 
 const { TextArea } = Input;
 
@@ -53,7 +53,6 @@ const DriverDetailPage = ({ params }: { params: Promise<{ driverId: string }> })
   const { driverId } = use(params);
 
   // Fetch driver with history from API
-  console.log("Fetching driver with ID:", driverId);
   const { data: driverResponse, isLoading } = useQuery({
     queryKey: ["driver", driverId],
     queryFn: () => getDriverWithHistory(parseInt(driverId)),
@@ -350,8 +349,7 @@ const DriverDetailPage = ({ params }: { params: Promise<{ driverId: string }> })
   ];
 
   const handleBonus = (values: { amount: number; reason: string }) => {
-    console.log("Bonus:", values);
-    message.success(
+    toast.success(
       `₹${values.amount} bonus has been approved for ${driverData.name}`
     );
     setBonusModalVisible(false);

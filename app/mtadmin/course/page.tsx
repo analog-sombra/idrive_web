@@ -23,7 +23,7 @@ interface CourseData {
   courseId: string;
   courseName: string;
   courseType: "beginner" | "intermediate" | "advanced" | "refresher";
-  hoursPerDay: number;
+  minsPerDay: number;
   courseDays: number;
   price: number;
   status: "active" | "inactive" | "upcoming" | "archived";
@@ -84,7 +84,7 @@ const CourseManagementPage = () => {
         | "intermediate"
         | "advanced"
         | "refresher",
-      hoursPerDay: course.hoursPerDay,
+      minsPerDay: course.minsPerDay,
       courseDays: course.courseDays,
       price: course.price,
       status: course.status.toLowerCase() as
@@ -154,7 +154,7 @@ const CourseManagementPage = () => {
         <div>
           <div className="font-semibold text-gray-900">{record.courseName}</div>
           <div className="text-xs text-gray-500 mt-1">
-            {record.courseDays} days • {record.hoursPerDay} min/day
+            {record.courseDays} days • {record.minsPerDay} min/day
           </div>
         </div>
       ),
@@ -182,8 +182,8 @@ const CourseManagementPage = () => {
     },
     {
       title: "Hours/Day",
-      dataIndex: "hoursPerDay",
-      key: "hoursPerDay",
+      dataIndex: "minsPerDay",
+      key: "minsPerDay",
       width: 110,
       render: (hours) => `${hours} min`,
     },

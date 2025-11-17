@@ -7,9 +7,9 @@ export const AddCourseSchema = v.object({
     v.minLength(3, "Course name must be at least 3 characters")
   ),
   courseType: v.pipe(v.string(), v.minLength(1, "Course type is required")),
-  hoursPerDay: v.pipe(
+  minsPerDay: v.pipe(
     v.string(),
-    v.regex(/^(30|60)$/, "Hours per day must be 30 or 60")
+    v.regex(/^[0-9]+$/, "Minutes per day must be a valid number")
   ),
   courseDays: v.pipe(
     v.string(),

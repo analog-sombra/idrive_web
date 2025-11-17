@@ -9,7 +9,7 @@ import { toast } from "react-toastify";
 import { AddCarForm, AddCarSchema } from "@/schema/addcar";
 import { TextInput } from "@/components/form/inputfields/textinput";
 import { DateInput } from "@/components/form/inputfields/dateinput";
-import { Select } from "@/components/form/inputfields/select";
+import { MultiSelect } from "@/components/form/inputfields/multiselect";
 import { Button, Card, Modal } from "antd";
 import {
   Fa6SolidArrowLeftLong,
@@ -244,7 +244,7 @@ const AddCarPage = () => {
                     />
                   </div>
                   <div>
-                    <Select<AddCarForm>
+                    <MultiSelect<AddCarForm>
                       name="fuelType"
                       title="Fuel Type"
                       placeholder="Select fuel type"
@@ -261,7 +261,7 @@ const AddCarPage = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                   <div>
-                    <Select<AddCarForm>
+                    <MultiSelect<AddCarForm>
                       name="transmission"
                       title="Transmission"
                       placeholder="Select transmission"
@@ -411,10 +411,11 @@ const AddCarPage = () => {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Select<AddCarForm>
+                    <MultiSelect<AddCarForm>
                       name="assignedDriverId"
                       title="Assign Driver (Optional)"
                       placeholder="Select a driver"
+                      required={false}
                       options={driverOptions}
                     />
                   </div>

@@ -12,7 +12,6 @@ import {
   Space,
   Modal,
   Input,
-  message,
   Select,
   Pagination,
   DatePicker,
@@ -34,6 +33,7 @@ import {
   Fa6RegularHourglassHalf,
 } from "@/components/icons";
 import { useRouter } from "next/navigation";
+import { toast } from "react-toastify";
 
 const { TextArea } = Input;
 
@@ -295,7 +295,7 @@ const DriverPage = () => {
       )
     );
 
-    message.success(
+    toast.success(
       `Attendance marked as ${attendanceModal.status} for ${attendanceModal.booking.customerName}`
     );
 

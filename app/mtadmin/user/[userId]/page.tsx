@@ -10,7 +10,6 @@ import {
   Modal,
   Form,
   InputNumber,
-  message,
   Avatar,
   Descriptions,
 } from "antd";
@@ -25,6 +24,7 @@ import {
   IcBaselineCalendarMonth,
 } from "@/components/icons";
 import { useRouter } from "next/navigation";
+import { toast } from "react-toastify";
 
 const { TextArea } = Input;
 
@@ -319,8 +319,7 @@ const UserDetailPage = ({ params }: { params: { userId: string } }) => {
   ];
 
   const handleRefund = (values: { amount: number; reason: string }) => {
-    console.log("Refund:", values);
-    message.success(
+    toast.success(
       `₹${values.amount} has been refunded to ${userData.name}'s wallet`
     );
     setRefundModalVisible(false);

@@ -8,12 +8,14 @@ import { toast } from "react-toastify";
 import { useState, useEffect } from "react";
 import { TextInput } from "./inputfields/textinput";
 import { TaxtAreaInput } from "./inputfields/textareainput";
-import { Select } from "./inputfields/select";
+import { MultiSelect } from "./inputfields/multiselect";
 import { Modal, Button, Tag, Checkbox, Spin } from "antd";
 import { getCookie } from "cookies-next";
 import { getAllCourses, type Course as APICourse } from "@/services/course.api";
 import { getAllServices, type Service as APIService } from "@/services/service.api";
 import { searchUserByContact, type User } from "@/services/user.api";
+import { getPaginatedCars, getCarById } from "@/services/car.api";
+import { getSchoolById } from "@/services/school.api";
 import {
   CheckCircleOutlined,
   CarOutlined,
@@ -28,8 +30,6 @@ import dayjs, { Dayjs } from "dayjs";
 import { DatePicker } from "antd";
 import type {
   BookingFormData,
-  Course,
-  Addon,
   Customer,
 } from "@/schema/booking";
 
@@ -40,6 +40,8 @@ type FormCourse = {
   price: number;
   courseType: string;
   courseDays: number;
+  minsPerDay: number;
+  enrolledStudents: number;
 };
 
 type FormService = {
@@ -48,6 +50,56 @@ type FormService = {
   price: number;
   serviceType: string;
   description: string;
+};
+
+// Helper function to generate time slots
+const generateTimeSlots = (
+  startTime: string,
+  endTime: string,
+  lunchStart?: string,
+  lunchEnd?: string
+): string[] => {
+  const slots: string[] = [];
+  
+  const parseTime = (time: string) => {
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
+  };
+
+  const formatTime = (minutes: number) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+  };
+
+  const startMinutes = parseTime(startTime);
+  const endMinutes = parseTime(endTime);
+  const lunchStartMinutes = lunchStart ? parseTime(lunchStart) : null;
+  const lunchEndMinutes = lunchEnd ? parseTime(lunchEnd) : null;
+
+  let currentMinutes = startMinutes;
+
+  while (currentMinutes < endMinutes) {
+    const nextMinutes = currentMinutes + 60;
+    
+    // Skip if slot overlaps with lunch time
+    if (lunchStartMinutes !== null && lunchEndMinutes !== null) {
+      const isInLunchTime = 
+        (currentMinutes >= lunchStartMinutes && currentMinutes < lunchEndMinutes) ||
+        (nextMinutes > lunchStartMinutes && nextMinutes <= lunchEndMinutes) ||
+        (currentMinutes < lunchStartMinutes && nextMinutes > lunchEndMinutes);
+      
+      if (!isInLunchTime) {
+        slots.push(`${formatTime(currentMinutes)}-${formatTime(nextMinutes)}`);
+      }
+    } else {
+      slots.push(`${formatTime(currentMinutes)}-${formatTime(nextMinutes)}`);
+    }
+
+    currentMinutes = nextMinutes;
+  }
+
+  return slots;
 };
 
 const BookingForm = () => {
@@ -60,9 +112,85 @@ const BookingForm = () => {
   const [customerData, setCustomerData] = useState<Customer | null>(null);
   const [loadingCustomer, setLoadingCustomer] = useState(false);
   const [bookingDate, setBookingDate] = useState<Dayjs | null>(null);
+  const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>([]);
 
   // Get school ID from cookie
   const schoolId: number = parseInt(getCookie("school")?.toString() || "0");
+
+  // Get car and slot from URL params
+  const carIdFromUrl = searchParams.get("carId") || "";
+  const slotFromUrl = searchParams.get("slot") || "";
+  const minDateParam = searchParams.get("minDate") || ""; // For booked slots - free from date
+
+  // Parse carId as number if provided
+  const numericCarId = carIdFromUrl ? parseInt(carIdFromUrl) : null;
+
+  // Fetch car details if carId is provided in URL
+  const {
+    data: selectedCarResponse,
+    isLoading: loadingSelectedCar,
+    isError: carLoadError,
+  } = useQuery({
+    queryKey: ["car", numericCarId],
+    queryFn: async () => {
+      if (!numericCarId || isNaN(numericCarId)) {
+        throw new Error("Invalid car ID");
+      }
+      return await getCarById(numericCarId);
+    },
+    enabled: !!numericCarId && !isNaN(numericCarId),
+  });
+
+  const selectedCarData = selectedCarResponse?.data?.getCarById;
+
+  // Validate that the car belongs to the school
+  const carBelongsToSchool = selectedCarData?.schoolId === schoolId;
+
+  // Fetch school profile for timing information
+  const {
+    data: schoolResponse,
+  } = useQuery({
+    queryKey: ["school", schoolId],
+    queryFn: () => getSchoolById(schoolId),
+    enabled: schoolId > 0,
+  });
+
+  const schoolData = schoolResponse?.data?.getSchoolById;
+
+  // Generate time slots based on school timings
+  useEffect(() => {
+    if (schoolData?.dayStartTime && schoolData?.dayEndTime) {
+      const slots = generateTimeSlots(
+        schoolData.dayStartTime,
+        schoolData.dayEndTime,
+        schoolData.lunchStartTime || undefined,
+        schoolData.lunchEndTime || undefined
+      );
+      setAvailableTimeSlots(slots);
+    }
+  }, [schoolData]);
+
+  // Fetch cars for the school (only if car not provided in URL)
+  const {
+    data: carsResponse,
+    isLoading: loadingCars,
+  } = useQuery({
+    queryKey: ["cars", schoolId],
+    queryFn: () =>
+      getPaginatedCars({
+        searchPaginationInput: {
+          skip: 0,
+          take: 100,
+        },
+        whereSearchInput: {
+          schoolId: schoolId,
+          status: "AVAILABLE",
+        },
+      }),
+    enabled: schoolId > 0 && !carIdFromUrl,
+  });
+
+  const availableCars = carsResponse?.data?.getPaginatedCar?.data || [];
 
   // Fetch courses for the school
   const {
@@ -98,6 +226,8 @@ const BookingForm = () => {
     price: course.price,
     courseType: course.courseType,
     courseDays: course.courseDays,
+    minsPerDay: course.minsPerDay,
+    enrolledStudents: course.enrolledStudents,
   })) || [];
 
   const services: FormService[] = servicesResponse?.data?.getAllService?.map((service: APIService) => ({
@@ -108,18 +238,12 @@ const BookingForm = () => {
     description: service.description,
   })) || [];
 
-  // Get car and slot from URL params
-  const carId = searchParams.get("carId") || "";
-  const carName = searchParams.get("carName") || "";
-  const slot = searchParams.get("slot") || "";
-  const minDateParam = searchParams.get("minDate") || ""; // For booked slots - free from date
-
   const methods = useForm<BookingFormData>({
     mode: "onChange",
     defaultValues: {
-      carId,
-      carName,
-      slot,
+      carId: carIdFromUrl,
+      carName: selectedCarData?.carName || "",
+      slot: slotFromUrl,
       bookingDate: "",
       customerMobile: "",
       customerName: "",
@@ -136,6 +260,22 @@ const BookingForm = () => {
 
   const { watch, setValue } = methods;
   const formValues = watch();
+
+  // Update carName when selectedCarData is loaded
+  useEffect(() => {
+    if (selectedCarData) {
+      setValue("carName", selectedCarData.carName);
+    }
+  }, [selectedCarData, setValue]);
+
+  // Watch for car selection changes
+  useEffect(() => {
+    const carId = formValues.carId;
+    if (carId && availableCars.length > 0 && !carIdFromUrl) {
+      handleCarChange(carId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formValues.carId, availableCars]);
 
   // Watch for course selection changes
   useEffect(() => {
@@ -157,7 +297,8 @@ const BookingForm = () => {
 
     setLoadingCustomer(true);
     try {
-      const response = await searchUserByContact(mobile, schoolId);
+      // Search for user across all schools with USER role
+      const response = await searchUserByContact(mobile);
       
       if (response.status && response.data.searchUser) {
         const user: User = response.data.searchUser;
@@ -206,6 +347,15 @@ const BookingForm = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formValues.customerMobile]);
 
+  // Handle car selection
+  const handleCarChange = (carId: string) => {
+    const car = availableCars.find((c) => c.id.toString() === carId);
+    if (car) {
+      setValue("carId", carId);
+      setValue("carName", car.carName);
+    }
+  };
+
   // Handle course selection
   const handleCourseChange = (courseId: string) => {
     const course = courses.find((c) => c.id.toString() === courseId);
@@ -249,13 +399,13 @@ const BookingForm = () => {
     let completed = 0;
     const total = 6; // Total required fields
 
-    if (formValues.carId && formValues.slot) completed++;
+    if (formValues.carId) completed++;
+    if (formValues.slot) completed++;
     if (formValues.bookingDate) completed++;
     if (formValues.customerMobile && formValues.customerMobile.length >= 10)
       completed++;
     if (customerData) completed++;
     if (formValues.courseId) completed++;
-    if (formValues.totalAmount > 0) completed++;
 
     return Math.round((completed / total) * 100);
   };
@@ -264,16 +414,32 @@ const BookingForm = () => {
   const validateForm = (): { isValid: boolean; errors: string[] } => {
     const errors: string[] = [];
 
-    if (!formValues.carId || !formValues.slot) {
-      errors.push("Car and slot information is missing");
+    // Check if car from URL is valid
+    if (numericCarId && carLoadError) {
+      errors.push("The selected car does not exist");
+      return { isValid: false, errors };
+    }
+
+    if (numericCarId && selectedCarData && !carBelongsToSchool) {
+      errors.push("The selected car does not belong to your school");
+      return { isValid: false, errors };
+    }
+
+    if (!formValues.carId) {
+      errors.push("Please select a car");
+    }
+
+    if (!formValues.slot) {
+      errors.push("Please select a time slot");
     }
 
     if (!formValues.bookingDate) {
       errors.push("Please select a booking date");
     } else {
       const selectedDate = dayjs(formValues.bookingDate);
-      if (selectedDate.isBefore(dayjs(), "day")) {
-        errors.push("Booking date must be in the future");
+      const minDate = minDateParam ? dayjs(minDateParam) : dayjs().add(1, "day");
+      if (selectedDate.isBefore(minDate, "day")) {
+        errors.push(`Booking date must be from ${minDate.format('DD MMM YYYY')} onwards`);
       }
     }
 
@@ -290,7 +456,7 @@ const BookingForm = () => {
     }
 
     if (formValues.totalAmount <= 0) {
-      errors.push("Invalid booking amount");
+      errors.push("Please select a course to calculate the booking amount");
     }
 
     return {
@@ -369,6 +535,49 @@ const BookingForm = () => {
               </Button>
             </div>
 
+            {/* Car Error Display */}
+            {numericCarId && carLoadError && (
+              <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4 mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="text-2xl">❌</div>
+                  <div>
+                    <p className="font-bold text-red-800">Car Not Found</p>
+                    <p className="text-sm text-red-700">
+                      The car with ID {carIdFromUrl} does not exist. Please check the ID and try again.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {numericCarId && selectedCarData && !carBelongsToSchool && (
+              <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4 mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="text-2xl">🚫</div>
+                  <div>
+                    <p className="font-bold text-red-800">Invalid Car</p>
+                    <p className="text-sm text-red-700">
+                      This car (ID: {carIdFromUrl}) does not belong to your school. You can only create bookings for cars in your school.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {numericCarId && loadingSelectedCar && (
+              <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-4 mb-4">
+                <div className="flex items-center gap-3">
+                  <Spin />
+                  <div>
+                    <p className="font-bold text-blue-800">Loading Car Details...</p>
+                    <p className="text-sm text-blue-700">
+                      Validating car information for ID: {carIdFromUrl}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Progress Bar */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
               <div className="flex items-center justify-between mb-2">
@@ -406,6 +615,21 @@ const BookingForm = () => {
                 </div>
               )}
 
+              {/* Weekend Info Banner */}
+              {schoolData?.weeklyHoliday && (
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border-2 border-blue-300">
+                  <div className="flex items-center gap-3">
+                    <div className="text-2xl">📅</div>
+                    <div>
+                      <p className="font-bold text-blue-800">Weekly Holiday</p>
+                      <p className="text-sm text-blue-700">
+                        School is closed on <span className="font-bold">{schoolData.weeklyHoliday}s</span>. These dates are disabled in the calendar.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Booking Details Card */}
               <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
                 <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
@@ -414,30 +638,98 @@ const BookingForm = () => {
                 </h2>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  {/* Car Selection */}
                   <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-2">
                       <CarOutlined className="text-blue-600" />
                       <span className="text-xs font-semibold text-gray-600">
                         Car
                       </span>
                     </div>
-                    <p className="text-lg font-bold text-gray-900">
-                      {carName || "Not selected"}
-                    </p>
+                    {carIdFromUrl ? (
+                      selectedCarData ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-lg font-bold text-gray-900">
+                              {selectedCarData.carName}
+                            </p>
+                            <Tag color={selectedCarData.status === 'AVAILABLE' ? 'green' : selectedCarData.status === 'MAINTENANCE' ? 'orange' : 'red'} className="text-xs">
+                              {selectedCarData.status}
+                            </Tag>
+                          </div>
+                          <div className="space-y-1 text-sm text-gray-700">
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-500">📋</span>
+                              <span className="font-medium">{selectedCarData.registrationNumber}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-500">🚗</span>
+                              <span>{selectedCarData.model} • {selectedCarData.year}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-500">⚙️</span>
+                              <span>{selectedCarData.transmission} • {selectedCarData.fuelType}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-500">💺</span>
+                              <span>{selectedCarData.seatingCapacity} Seats • {selectedCarData.color}</span>
+                            </div>
+                            {selectedCarData.currentMileage > 0 && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-500">📍</span>
+                                <span>{selectedCarData.currentMileage.toLocaleString()} km</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-lg font-bold text-gray-900">
+                          {formValues.carName || "Not selected"}
+                        </p>
+                      )
+                    ) : (
+                      <MultiSelect<BookingFormData>
+                        name="carId"
+                        title=""
+                        placeholder={loadingCars ? "Loading cars..." : "Select a car"}
+                        required={true}
+                        options={availableCars.map((car) => ({
+                          value: car.id.toString(),
+                          label: `${car.carName} (${car.registrationNumber})`,
+                        }))}
+                        disable={loadingCars}
+                      />
+                    )}
                   </div>
 
+                  {/* Time Slot Selection */}
                   <div className="bg-purple-50 rounded-lg p-4 border-2 border-purple-200">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-2">
                       <ClockCircleOutlined className="text-purple-600" />
                       <span className="text-xs font-semibold text-gray-600">
                         Time Slot
                       </span>
                     </div>
-                    <p className="text-lg font-bold text-gray-900">
-                      {slot || "Not selected"}
-                    </p>
+                    {slotFromUrl ? (
+                      <p className="text-lg font-bold text-gray-900">
+                        {formValues.slot || "Not selected"}
+                      </p>
+                    ) : (
+                      <MultiSelect<BookingFormData>
+                        name="slot"
+                        title=""
+                        placeholder={availableTimeSlots.length === 0 ? "Loading slots..." : "Select time slot"}
+                        required={true}
+                        options={availableTimeSlots.map((slot) => ({
+                          value: slot,
+                          label: slot,
+                        }))}
+                        disable={availableTimeSlots.length === 0}
+                      />
+                    )}
                   </div>
 
+                  {/* Date Selection */}
                   <div className="bg-green-50 rounded-lg p-4 border-2 border-green-200">
                     <div className="flex items-center gap-2 mb-2">
                       <CalendarOutlined className="text-green-600" />
@@ -458,16 +750,43 @@ const BookingForm = () => {
                       size="large"
                       className="w-full"
                       disabledDate={(current) => {
-                        // If coming from booked slot, allow dates from free date onwards
+                        if (!current) return false;
+
+                        // Check minimum date restriction
                         if (minDateParam) {
                           const minDate = dayjs(minDateParam);
-                          return current && current.isBefore(minDate, "day");
+                          if (current.isBefore(minDate, "day")) {
+                            return true;
+                          }
+                        } else {
+                          // Otherwise, allow dates from tomorrow onwards
+                          if (current.isBefore(dayjs().add(1, "day"), "day")) {
+                            return true;
+                          }
                         }
-                        // Otherwise, allow dates from tomorrow onwards
-                        return (
-                          current &&
-                          current.isBefore(dayjs().add(1, "day"), "day")
-                        );
+
+                        // Check weekend restriction if school has a weekly holiday
+                        if (schoolData?.weeklyHoliday) {
+                          const dayOfWeek = current.day(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+                          const weeklyHoliday = schoolData.weeklyHoliday.toUpperCase();
+                          
+                          const dayMap: { [key: string]: number } = {
+                            'SUNDAY': 0,
+                            'MONDAY': 1,
+                            'TUESDAY': 2,
+                            'WEDNESDAY': 3,
+                            'THURSDAY': 4,
+                            'FRIDAY': 5,
+                            'SATURDAY': 6
+                          };
+
+                          const holidayDay = dayMap[weeklyHoliday];
+                          if (holidayDay !== undefined && dayOfWeek === holidayDay) {
+                            return true;
+                          }
+                        }
+
+                        return false;
                       }}
                       placeholder={minDateParam ? `Available from ${dayjs(minDateParam).format('DD MMM YYYY')}` : "Select date"}
                     />
@@ -562,34 +881,85 @@ const BookingForm = () => {
                 </h2>
 
                 <div className="space-y-4">
-                  <Select<BookingFormData>
+                  <MultiSelect<BookingFormData>
                     name="courseId"
                     title=""
                     placeholder={loadingCourses ? "Loading courses..." : "Choose a driving course"}
-                    required
+                    required={true}
                     options={courses.map((course) => ({
                       value: course.id.toString(),
                       label: course.name,
                     }))}
                     disable={loadingCourses}
                   />
+                  <div></div>
 
                   {selectedCourse && (
-                    <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-bold text-gray-900">
-                            {selectedCourse.name}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            {selectedCourse.courseType} • {selectedCourse.courseDays} days
-                          </p>
+                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-5 border-2 border-blue-300 shadow-sm">
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between border-b border-blue-200 pb-3">
+                          <div>
+                            <p className="text-xl font-bold text-gray-900">
+                              {selectedCourse.name}
+                            </p>
+                            <Tag color={
+                              selectedCourse.courseType === 'BEGINNER' ? 'green' :
+                              selectedCourse.courseType === 'INTERMEDIATE' ? 'blue' :
+                              selectedCourse.courseType === 'ADVANCED' ? 'purple' : 'orange'
+                            } className="mt-2">
+                              {selectedCourse.courseType}
+                            </Tag>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-gray-500">Course Fee</p>
+                            <p className="text-2xl font-bold text-blue-600">
+                              ₹{selectedCourse.price.toLocaleString('en-IN')}
+                            </p>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="text-2xl font-bold text-blue-600">
-                            ₹{selectedCourse.price.toLocaleString('en-IN')}
-                          </p>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="bg-white rounded-lg p-3 border border-blue-200">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-lg">📅</span>
+                              <p className="text-xs text-gray-500 font-semibold">Total Days</p>
+                            </div>
+                            <p className="text-lg font-bold text-gray-900">
+                              {selectedCourse.courseDays} Days
+                            </p>
+                          </div>
+
+                          <div className="bg-white rounded-lg p-3 border border-blue-200">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-lg">⏱️</span>
+                              <p className="text-xs text-gray-500 font-semibold">Mins/Day</p>
+                            </div>
+                            <p className="text-lg font-bold text-gray-900">
+                              {selectedCourse.minsPerDay} {selectedCourse.minsPerDay === 1 ? 'Min' : 'Mins'}
+                            </p>
+                          </div>
                         </div>
+
+                        <div className="bg-white rounded-lg p-3 border border-blue-200">
+                          <div className="flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-2">
+                              <span>⏰</span>
+                              <span className="text-gray-600">Total Duration</span>
+                            </div>
+                            <span className="font-bold text-gray-900">
+                              {selectedCourse.courseDays * selectedCourse.minsPerDay} Mins
+                            </span>
+                          </div>
+                        </div>
+
+                        {selectedCourse.enrolledStudents > 0 && (
+                          <div className="bg-green-50 rounded-lg p-2 border border-green-200">
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-green-700">👥 Enrolled Students</span>
+                              <span className="font-bold text-green-900">{selectedCourse.enrolledStudents}</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -689,13 +1059,13 @@ const BookingForm = () => {
                     <div className="flex items-center justify-between text-sm mb-2">
                       <span className="text-gray-600">Car:</span>
                       <span className="font-semibold text-gray-900">
-                        {carName || "-"}
+                        {formValues.carName || "-"}
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-sm mb-2">
                       <span className="text-gray-600">Slot:</span>
                       <span className="font-semibold text-gray-900">
-                        {slot || "-"}
+                        {formValues.slot || "-"}
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-sm">

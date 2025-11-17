@@ -24,7 +24,6 @@ export const ApiCall = async <T>(args: {
   };
 }): Promise<ApiRespose<T>> => {
   try {
-    console.log("API CALL", args);
     const req = await axios.post(
       graphqlurl,
       {
@@ -33,7 +32,6 @@ export const ApiCall = async <T>(args: {
       },
       { headers: args.headers }
     );
-    console.log(req.data);
 
     if (
       req.data.data == null ||

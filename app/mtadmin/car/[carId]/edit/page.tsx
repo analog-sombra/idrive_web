@@ -10,7 +10,7 @@ import { toast } from "react-toastify";
 import { EditCarForm, EditCarSchema } from "@/schema/editcar";
 import { TextInput } from "@/components/form/inputfields/textinput";
 import { DateInput } from "@/components/form/inputfields/dateinput";
-import { Select } from "@/components/form/inputfields/select";
+import { MultiSelect } from "@/components/form/inputfields/multiselect";
 import { Button, Card, Spin, Alert, Modal } from "antd";
 import {
   Fa6SolidArrowLeftLong,
@@ -258,11 +258,11 @@ const EditCarPage = ({ params }: { params: Promise<{ carId: string }> }) => {
                     />
                   </div>
                   <div>
-                    <Select<EditCarForm>
+                    <MultiSelect<EditCarForm>
                       name="fuelType"
                       title="Fuel Type"
                       placeholder="Select fuel type"
-                      required
+                      required={true}
                       options={[
                         { label: "PETROL", value: "PETROL" },
                         { label: "DIESEL", value: "DIESEL" },
@@ -275,11 +275,11 @@ const EditCarPage = ({ params }: { params: Promise<{ carId: string }> }) => {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                   <div>
-                    <Select<EditCarForm>
+                    <MultiSelect<EditCarForm>
                       name="transmission"
                       title="Transmission"
                       placeholder="Select transmission"
-                      required
+                      required={true}
                       options={[
                         { label: "MANUAL", value: "MANUAL" },
                         { label: "AUTOMATIC", value: "AUTOMATIC" },
@@ -296,11 +296,11 @@ const EditCarPage = ({ params }: { params: Promise<{ carId: string }> }) => {
                     />
                   </div>
                   <div>
-                    <Select<EditCarForm>
+                    <MultiSelect<EditCarForm>
                       name="status"
                       title="Status"
                       placeholder="Select status"
-                      required
+                      required={true}
                       options={[
                         { label: "AVAILABLE", value: "AVAILABLE" },
                         { label: "IN_USE", value: "IN_USE" },
@@ -439,10 +439,11 @@ const EditCarPage = ({ params }: { params: Promise<{ carId: string }> }) => {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Select<EditCarForm>
+                    <MultiSelect<EditCarForm>
                       name="assignedDriverId"
                       title="Assign Driver (Optional)"
                       placeholder="Select a driver"
+                      required={false}
                       options={driverOptions}
                     />
                   </div>

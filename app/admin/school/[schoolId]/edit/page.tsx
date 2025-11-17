@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect, use } from "react";
-import { Card, Form, Input, Button, Select, message, Spin } from "antd";
+import { Card, Form, Input, Button, Select, Spin } from "antd";
 import {
   IcBaselineArrowBack,
   AntDesignCheckOutlined,
 } from "@/components/icons";
 import { useRouter } from "next/navigation";
 import { getSchoolById, updateSchool } from "@/services/school.api";
+import { toast } from "react-toastify";
 
 const { TextArea } = Input;
 
@@ -24,7 +25,11 @@ interface SchoolFormValues {
   status: "ACTIVE" | "INACTIVE" | "SUSPENDED";
 }
 
-const EditSchoolPage = ({ params }: { params: Promise<{ schoolId: string }> }) => {
+const EditSchoolPage = ({
+  params,
+}: {
+  params: Promise<{ schoolId: string }>;
+}) => {
   const resolvedParams = use(params);
   const router = useRouter();
   const [form] = Form.useForm();
@@ -37,7 +42,7 @@ const EditSchoolPage = ({ params }: { params: Promise<{ schoolId: string }> }) =
       setFetching(true);
       try {
         const response = await getSchoolById(parseInt(resolvedParams.schoolId));
-        
+
         if (response.status && response.data.getSchoolById) {
           const school = response.data.getSchoolById;
           form.setFieldsValue({
@@ -55,7 +60,7 @@ const EditSchoolPage = ({ params }: { params: Promise<{ schoolId: string }> }) =
         }
       } catch (error) {
         console.error("Error fetching school:", error);
-        message.error("Failed to load school data");
+        toast.error("Failed to load school data");
       } finally {
         setFetching(false);
       }
@@ -71,16 +76,16 @@ const EditSchoolPage = ({ params }: { params: Promise<{ schoolId: string }> }) =
         id: parseInt(resolvedParams.schoolId),
         ...values,
       });
-      
+
       if (response.status && response.data.updateSchool) {
-        message.success("School information updated successfully!");
+        toast.success("School information updated successfully!");
         router.push(`/admin/school/${resolvedParams.schoolId}`);
       } else {
-        message.error(response.message || "Failed to update school");
+        toast.error(response.message || "Failed to update school");
       }
     } catch (error) {
       console.error("Error updating school:", error);
-      message.error("Failed to update school. Please try again.");
+      toast.error("Failed to update school. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -102,7 +107,9 @@ const EditSchoolPage = ({ params }: { params: Promise<{ schoolId: string }> }) =
           <div className="flex items-center gap-4 mb-2">
             <Button
               icon={<IcBaselineArrowBack className="text-lg" />}
-              onClick={() => router.push(`/admin/school/${resolvedParams.schoolId}`)}
+              onClick={() =>
+                router.push(`/admin/school/${resolvedParams.schoolId}`)
+              }
               size="large"
             >
               Back to School Details
@@ -156,10 +163,7 @@ const EditSchoolPage = ({ params }: { params: Promise<{ schoolId: string }> }) =
                     },
                   ]}
                 >
-                  <Input
-                    size="large"
-                    placeholder="Enter registration number"
-                  />
+                  <Input size="large" placeholder="Enter registration number" />
                 </Form.Item>
 
                 <Form.Item
@@ -167,7 +171,8 @@ const EditSchoolPage = ({ params }: { params: Promise<{ schoolId: string }> }) =
                   name="gstNumber"
                   rules={[
                     {
-                      pattern: /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/,
+                      pattern:
+                        /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/,
                       message: "Please enter valid GST number",
                     },
                   ]}
@@ -203,9 +208,7 @@ const EditSchoolPage = ({ params }: { params: Promise<{ schoolId: string }> }) =
                 <Form.Item
                   label="Website (Optional)"
                   name="website"
-                  rules={[
-                    { type: "url", message: "Please enter valid URL" },
-                  ]}
+                  rules={[{ type: "url", message: "Please enter valid URL" }]}
                 >
                   <Input
                     size="large"
@@ -330,7 +333,9 @@ const EditSchoolPage = ({ params }: { params: Promise<{ schoolId: string }> }) =
               <Button
                 type="default"
                 size="large"
-                onClick={() => router.push(`/admin/school/${resolvedParams.schoolId}`)}
+                onClick={() =>
+                  router.push(`/admin/school/${resolvedParams.schoolId}`)
+                }
                 className="flex-1"
               >
                 Cancel

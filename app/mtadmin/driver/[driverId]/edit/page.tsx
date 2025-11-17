@@ -1,7 +1,16 @@
 "use client";
 
 import React, { useState, useEffect, use } from "react";
-import { Card, Form, Input, Button, Select, DatePicker, message, InputNumber, Spin } from "antd";
+import {
+  Card,
+  Form,
+  Input,
+  Button,
+  Select,
+  DatePicker,
+  InputNumber,
+  Spin,
+} from "antd";
 import {
   IcBaselineArrowBack,
   AntDesignCheckOutlined,
@@ -10,6 +19,7 @@ import { useRouter } from "next/navigation";
 import { getDriverById, updateDriver } from "@/services/driver.api";
 import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
+import { toast } from "react-toastify";
 
 const { TextArea } = Input;
 
@@ -35,7 +45,11 @@ interface DriverFormValues {
   emergencyContactRelation?: string;
 }
 
-const EditDriverPage = ({ params }: { params: Promise<{ driverId: string }> }) => {
+const EditDriverPage = ({
+  params,
+}: {
+  params: Promise<{ driverId: string }>;
+}) => {
   const router = useRouter();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
@@ -43,7 +57,7 @@ const EditDriverPage = ({ params }: { params: Promise<{ driverId: string }> }) =
 
   // Unwrap params (Next.js 15+ async params)
   const { driverId } = use(params);
-  
+
   // Parse the numeric driver ID from the URL parameter
   const numericDriverId = parseInt(driverId);
 
@@ -53,34 +67,42 @@ const EditDriverPage = ({ params }: { params: Promise<{ driverId: string }> }) =
       setFetching(true);
       try {
         const response = await getDriverById(numericDriverId);
-        
+
         if (response.status && response.data.getDriverById) {
           const driver = response.data.getDriverById;
           form.setFieldsValue({
             name: driver.name,
             email: driver.email,
             mobile: driver.mobile,
-            alternatePhone: driver.alternatePhone || '',
-            dateOfBirth: driver.dateOfBirth ? dayjs(driver.dateOfBirth) : undefined,
-            bloodGroup: driver.bloodGroup || '',
-            gender: driver.gender || '',
-            address: driver.address || '',
+            alternatePhone: driver.alternatePhone || "",
+            dateOfBirth: driver.dateOfBirth
+              ? dayjs(driver.dateOfBirth)
+              : undefined,
+            bloodGroup: driver.bloodGroup || "",
+            gender: driver.gender || "",
+            address: driver.address || "",
             licenseNumber: driver.licenseNumber,
-            licenseIssueDate: driver.licenseIssueDate ? dayjs(driver.licenseIssueDate) : undefined,
-            licenseExpiryDate: driver.licenseExpiryDate ? dayjs(driver.licenseExpiryDate) : undefined,
-            licenseType: driver.licenseType || '',
+            licenseIssueDate: driver.licenseIssueDate
+              ? dayjs(driver.licenseIssueDate)
+              : undefined,
+            licenseExpiryDate: driver.licenseExpiryDate
+              ? dayjs(driver.licenseExpiryDate)
+              : undefined,
+            licenseType: driver.licenseType || "",
             experience: driver.experience || undefined,
-            joiningDate: driver.joiningDate ? dayjs(driver.joiningDate) : undefined,
+            joiningDate: driver.joiningDate
+              ? dayjs(driver.joiningDate)
+              : undefined,
             salary: driver.salary || undefined,
             status: driver.status,
-            emergencyContactName: driver.emergencyContactName || '',
-            emergencyContactNumber: driver.emergencyContactNumber || '',
-            emergencyContactRelation: driver.emergencyContactRelation || '',
+            emergencyContactName: driver.emergencyContactName || "",
+            emergencyContactNumber: driver.emergencyContactNumber || "",
+            emergencyContactRelation: driver.emergencyContactRelation || "",
           });
         }
       } catch (error) {
         console.error("Error fetching driver:", error);
-        message.error("Failed to load driver data");
+        toast.error("Failed to load driver data");
       } finally {
         setFetching(false);
       }
@@ -109,21 +131,25 @@ const EditDriverPage = ({ params }: { params: Promise<{ driverId: string }> }) =
         experience: values.experience,
         joiningDate: values.joiningDate?.toDate(),
         salary: values.salary,
-        status: values.status as "ACTIVE" | "INACTIVE" | "ON_LEAVE" | "SUSPENDED",
+        status: values.status as
+          | "ACTIVE"
+          | "INACTIVE"
+          | "ON_LEAVE"
+          | "SUSPENDED",
         emergencyContactName: values.emergencyContactName,
         emergencyContactNumber: values.emergencyContactNumber,
         emergencyContactRelation: values.emergencyContactRelation,
       });
-      
+
       if (response.status && response.data.updateDriver) {
-        message.success("Driver updated successfully!");
+        toast.success("Driver updated successfully!");
         router.push(`/mtadmin/driver/${driverId}`);
       } else {
-        message.error(response.message || "Failed to update driver");
+        toast.error(response.message || "Failed to update driver");
       }
     } catch (error) {
       console.error("Error updating driver:", error);
-      message.error("Failed to update driver. Please try again.");
+      toast.error("Failed to update driver. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -234,10 +260,7 @@ const EditDriverPage = ({ params }: { params: Promise<{ driverId: string }> }) =
                   />
                 </Form.Item>
 
-                <Form.Item
-                  label="Date of Birth (Optional)"
-                  name="dateOfBirth"
-                >
+                <Form.Item label="Date of Birth (Optional)" name="dateOfBirth">
                   <DatePicker
                     size="large"
                     className="w-full"
@@ -246,10 +269,7 @@ const EditDriverPage = ({ params }: { params: Promise<{ driverId: string }> }) =
                   />
                 </Form.Item>
 
-                <Form.Item
-                  label="Blood Group (Optional)"
-                  name="bloodGroup"
-                >
+                <Form.Item label="Blood Group (Optional)" name="bloodGroup">
                   <Select
                     size="large"
                     placeholder="Select blood group"
@@ -266,10 +286,7 @@ const EditDriverPage = ({ params }: { params: Promise<{ driverId: string }> }) =
                   />
                 </Form.Item>
 
-                <Form.Item
-                  label="Gender (Optional)"
-                  name="gender"
-                >
+                <Form.Item label="Gender (Optional)" name="gender">
                   <Select
                     size="large"
                     placeholder="Select gender"
@@ -286,10 +303,7 @@ const EditDriverPage = ({ params }: { params: Promise<{ driverId: string }> }) =
                   name="address"
                   className="md:col-span-2"
                 >
-                  <TextArea
-                    rows={3}
-                    placeholder="Enter complete address"
-                  />
+                  <TextArea rows={3} placeholder="Enter complete address" />
                 </Form.Item>
               </div>
             </div>
@@ -337,17 +351,17 @@ const EditDriverPage = ({ params }: { params: Promise<{ driverId: string }> }) =
                   />
                 </Form.Item>
 
-                <Form.Item
-                  label="License Type (Optional)"
-                  name="licenseType"
-                >
+                <Form.Item label="License Type (Optional)" name="licenseType">
                   <Select
                     size="large"
                     placeholder="Select license type"
                     options={[
                       { label: "LMV (Light Motor Vehicle)", value: "LMV" },
                       { label: "MCWG (Motorcycle with Gear)", value: "MCWG" },
-                      { label: "MCWOG (Motorcycle without Gear)", value: "MCWOG" },
+                      {
+                        label: "MCWOG (Motorcycle without Gear)",
+                        value: "MCWOG",
+                      },
                       { label: "HMV (Heavy Motor Vehicle)", value: "HMV" },
                     ]}
                   />
@@ -374,10 +388,7 @@ const EditDriverPage = ({ params }: { params: Promise<{ driverId: string }> }) =
                   />
                 </Form.Item>
 
-                <Form.Item
-                  label="Joining Date (Optional)"
-                  name="joiningDate"
-                >
+                <Form.Item label="Joining Date (Optional)" name="joiningDate">
                   <DatePicker
                     size="large"
                     className="w-full"
@@ -386,10 +397,7 @@ const EditDriverPage = ({ params }: { params: Promise<{ driverId: string }> }) =
                   />
                 </Form.Item>
 
-                <Form.Item
-                  label="Salary (Optional)"
-                  name="salary"
-                >
+                <Form.Item label="Salary (Optional)" name="salary">
                   <InputNumber
                     size="large"
                     className="w-full"

@@ -166,7 +166,7 @@ const CarScheduler = () => {
           <div 
             className="w-full h-16 flex flex-col items-center justify-center bg-red-50 border-2 border-red-300 rounded cursor-pointer hover:bg-red-100 transition-all"
             onClick={() => {
-              const bookingUrl = `/mtadmin/booking?carId=${car.id}&carName=${encodeURIComponent(car.name)}&slot=${encodeURIComponent(slot)}&minDate=${freeDateFull}`;
+              const bookingUrl = `/mtadmin/booking?carId=${car.id}&slot=${encodeURIComponent(slot)}&minDate=${freeDateFull}`;
               router.push(bookingUrl);
             }}
           >
@@ -184,7 +184,7 @@ const CarScheduler = () => {
         <div 
           className="w-full h-16 flex flex-col items-center justify-center bg-green-50 border-2 border-green-400 rounded cursor-pointer hover:bg-green-200 hover:scale-105 transition-all"
           onClick={() => {
-            const bookingUrl = `/mtadmin/booking?carId=${car.id}&carName=${encodeURIComponent(car.name)}&slot=${encodeURIComponent(slot)}`;
+            const bookingUrl = `/mtadmin/booking?carId=${car.id}&slot=${encodeURIComponent(slot)}`;
             router.push(bookingUrl);
           }}
         >

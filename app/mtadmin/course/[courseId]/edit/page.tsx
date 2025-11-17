@@ -9,7 +9,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "react-toastify";
 import { EditCourseForm, EditCourseSchema } from "@/schema/editcourse";
 import { TextInput } from "@/components/form/inputfields/textinput";
-import { Select } from "@/components/form/inputfields/select";
+import { MultiSelect } from "@/components/form/inputfields/multiselect";
 import { TaxtAreaInput } from "@/components/form/inputfields/textareainput";
 import { Button, Card, Modal, Spin } from "antd";
 import {
@@ -41,7 +41,7 @@ const EditCoursePage = ({ params }: { params: Promise<{ courseId: string }> }) =
         courseId: courseData.courseId,
         courseName: courseData.courseName,
         courseType: courseData.courseType,
-        hoursPerDay: courseData.hoursPerDay.toString(),
+        minsPerDay: courseData.minsPerDay.toString(),
         courseDays: courseData.courseDays.toString(),
         price: courseData.price.toString(),
         description: courseData.description,
@@ -62,7 +62,7 @@ const EditCoursePage = ({ params }: { params: Promise<{ courseId: string }> }) =
         id: courseId,
         courseName: data.courseName,
         courseType: data.courseType as "BEGINNER" | "INTERMEDIATE" | "ADVANCED" | "REFRESHER",
-        hoursPerDay: parseInt(data.hoursPerDay),
+        minsPerDay: parseInt(data.minsPerDay),
         courseDays: parseInt(data.courseDays),
         price: parseFloat(data.price),
         description: data.description,
@@ -129,7 +129,7 @@ const EditCoursePage = ({ params }: { params: Promise<{ courseId: string }> }) =
         courseId: courseData.courseId,
         courseName: courseData.courseName,
         courseType: courseData.courseType,
-        hoursPerDay: courseData.hoursPerDay.toString(),
+        minsPerDay: courseData.minsPerDay.toString(),
         courseDays: courseData.courseDays.toString(),
         price: courseData.price.toString(),
         description: courseData.description,
@@ -219,11 +219,11 @@ const EditCoursePage = ({ params }: { params: Promise<{ courseId: string }> }) =
                     />
                   </div>
                   <div>
-                    <Select<EditCourseForm>
+                    <MultiSelect<EditCourseForm>
                       name="courseType"
                       title="Course Type"
                       placeholder="Select course type"
-                      required
+                      required={true}
                       options={[
                         { label: "Beginner", value: "BEGINNER" },
                         { label: "Intermediate", value: "INTERMEDIATE" },
@@ -233,7 +233,7 @@ const EditCoursePage = ({ params }: { params: Promise<{ courseId: string }> }) =
                     />
                   </div>
                   <div>
-                    <Select<EditCourseForm>
+                    <MultiSelect<EditCourseForm>
                       name="status"
                       title="Status"
                       placeholder="Select status"
@@ -247,11 +247,11 @@ const EditCoursePage = ({ params }: { params: Promise<{ courseId: string }> }) =
                     />
                   </div>
                   <div>
-                    <Select<EditCourseForm>
-                      name="hoursPerDay"
+                    <MultiSelect<EditCourseForm>
+                      name="minsPerDay"
                       title="Hours Per Day"
                       placeholder="Select hours per day"
-                      required
+                      required={true}
                       options={[
                         { label: "30 minutes", value: "30" },
                         { label: "60 minutes", value: "60" },

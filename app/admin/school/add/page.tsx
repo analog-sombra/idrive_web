@@ -41,7 +41,6 @@ const AddSchoolPage = () => {
   const createSchoolWithUser = useMutation({
     mutationKey: ["createSchoolWithUser"],
     mutationFn: async (data: AddSchoolForm) => {
-      console.log("Form Data:", data);
       // First, create the school
       const schoolResponse = await ApiCall({
         query: `mutation CreateSchool($inputType: CreateSchoolInput!) {
@@ -87,13 +86,7 @@ const AddSchoolPage = () => {
       const last4Digits = data.phone.slice(-4);
       const generatedPassword = `${formattedSchoolName}@${last4Digits}`;
 
-      console.log({
-        contact1: data.phone,
-        password: generatedPassword,
-        role: "MT_ADMIN",
-        name: data.name,
-        schoolId: school.id,
-      });
+   
 
       // Create user for the school with MTADMIN role
       const userResponse = await ApiCall({
@@ -114,7 +107,6 @@ const AddSchoolPage = () => {
           },
         },
       });
-      console.log("User creation response:", userResponse);
 
       if (!userResponse.status) {
         throw new Error(userResponse.message || "Failed to create user");

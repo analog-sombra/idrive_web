@@ -8,7 +8,7 @@ import { useMutation } from "@tanstack/react-query";
 import { toast } from "react-toastify";
 import { AddServiceForm, AddServiceSchema } from "@/schema/addservice";
 import { TextInput } from "@/components/form/inputfields/textinput";
-import { Select } from "@/components/form/inputfields/select";
+import { MultiSelect } from "@/components/form/inputfields/multiselect";
 import { TaxtAreaInput } from "@/components/form/inputfields/textareainput";
 import { Button, Card, Modal } from "antd";
 import {
@@ -155,11 +155,11 @@ const AddServicePage = () => {
                     />
                   </div>
                   <div>
-                    <Select<AddServiceForm>
+                    <MultiSelect<AddServiceForm>
                       name="serviceType"
                       title="Service Type"
                       placeholder="Select service type"
-                      required
+                      required={true}
                       options={[
                         { label: "License", value: "LICENSE" },
                         { label: "Add-on", value: "ADDON" },

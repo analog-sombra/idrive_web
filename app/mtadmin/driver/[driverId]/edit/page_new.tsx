@@ -9,7 +9,7 @@ import { toast } from "react-toastify";
 import { EditDriverForm, EditDriverSchema } from "@/schema/editdriver";
 import { TextInput } from "@/components/form/inputfields/textinput";
 import { DateInput } from "@/components/form/inputfields/dateinput";
-import { Select } from "@/components/form/inputfields/select";
+import { MultiSelect } from "@/components/form/inputfields/multiselect";
 import { TaxtAreaInput } from "@/components/form/inputfields/textareainput";
 import { Button, Card, Modal, Spin } from "antd";
 import { IcBaselineArrowBack, AntDesignCheckOutlined } from "@/components/icons";
@@ -234,7 +234,7 @@ const EditDriverPage = ({ params }: { params: Promise<{ driverId: string }> }) =
                     />
                   </div>
                   <div>
-                    <Select<EditDriverForm>
+                    <MultiSelect<EditDriverForm>
                       name="bloodGroup"
                       title="Blood Group (Optional)"
                       placeholder="Select blood group"
@@ -252,11 +252,11 @@ const EditDriverPage = ({ params }: { params: Promise<{ driverId: string }> }) =
                     />
                   </div>
                   <div>
-                    <Select<EditDriverForm>
+                    <MultiSelect<EditDriverForm>
                       name="gender"
                       title="Gender"
                       placeholder="Select gender"
-                      required
+                      required={true}
                       options={[
                         { label: "Male", value: "Male" },
                         { label: "Female", value: "Female" },
@@ -290,11 +290,11 @@ const EditDriverPage = ({ params }: { params: Promise<{ driverId: string }> }) =
                     />
                   </div>
                   <div>
-                    <Select<EditDriverForm>
+                    <MultiSelect<EditDriverForm>
                       name="licenseType"
                       title="License Type"
                       placeholder="Select license type"
-                      required
+                      required={true}
                       options={[
                         { label: "LMV (Light Motor Vehicle)", value: "LMV" },
                         { label: "MCWG (Motorcycle with Gear)", value: "MCWG" },
@@ -356,11 +356,11 @@ const EditDriverPage = ({ params }: { params: Promise<{ driverId: string }> }) =
                     />
                   </div>
                   <div>
-                    <Select<EditDriverForm>
+                    <MultiSelect<EditDriverForm>
                       name="status"
                       title="Status"
                       placeholder="Select status"
-                      required
+                      required={true}
                       options={[
                         { label: "Active", value: "ACTIVE" },
                         { label: "Inactive", value: "INACTIVE" },
@@ -397,7 +397,7 @@ const EditDriverPage = ({ params }: { params: Promise<{ driverId: string }> }) =
                     />
                   </div>
                   <div>
-                    <Select<EditDriverForm>
+                    <MultiSelect<EditDriverForm>
                       name="emergencyContactRelation"
                       title="Relationship (Optional)"
                       placeholder="Select relationship"

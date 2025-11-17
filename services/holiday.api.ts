@@ -233,7 +233,6 @@ export const createHoliday = async (variables: {
   slots?: string;
   reason: string;
 }): Promise<CreateHolidayResponse> => {
-  console.log(variables);
   return await ApiCall({
     query: CREATE_HOLIDAY,
     variables: { inputType: variables },

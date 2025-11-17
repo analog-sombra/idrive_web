@@ -8,7 +8,7 @@ import { useMutation } from "@tanstack/react-query";
 import { toast } from "react-toastify";
 import { AddCourseForm, AddCourseSchema } from "@/schema/addcourse";
 import { TextInput } from "@/components/form/inputfields/textinput";
-import { Select } from "@/components/form/inputfields/select";
+import { MultiSelect } from "@/components/form/inputfields/multiselect";
 import { TaxtAreaInput } from "@/components/form/inputfields/textareainput";
 import { Button, Card, Modal } from "antd";
 import {
@@ -42,7 +42,7 @@ const AddCoursePage = () => {
         courseId: courseId,
         courseName: data.courseName,
         courseType: data.courseType as "BEGINNER" | "INTERMEDIATE" | "ADVANCED" | "REFRESHER",
-        hoursPerDay: parseInt(data.hoursPerDay),
+        minsPerDay: parseInt(data.minsPerDay),
         courseDays: parseInt(data.courseDays),
         price: parseFloat(data.price),
         description: data.description,
@@ -65,7 +65,7 @@ const AddCoursePage = () => {
             <div className="space-y-2">
               <p><strong>Course Name:</strong> {course.courseName}</p>
               <p><strong>Course Type:</strong> {course.courseType}</p>
-              <p><strong>Hours Per Day:</strong> {course.hoursPerDay} min</p>
+              <p><strong>Hours Per Day:</strong> {course.minsPerDay} min</p>
               <p><strong>Course Days:</strong> {course.courseDays} days</p>
               <p><strong>Price:</strong> ₹{course.price}</p>
             </div>
@@ -80,9 +80,9 @@ const AddCoursePage = () => {
   });
 
   const onSubmit = (data: AddCourseForm) => {
-    const hoursPerDay = parseInt(data.hoursPerDay);
+    const minsPerDay = parseInt(data.minsPerDay);
     const courseDays = parseInt(data.courseDays);
-    const durationInDays = Math.ceil((courseDays * hoursPerDay) / 60);
+    const durationInDays = Math.ceil((courseDays * minsPerDay) / 60);
     
     Modal.confirm({
       title: "Confirm Course Creation",
@@ -90,7 +90,7 @@ const AddCoursePage = () => {
         <div>
           <p><strong>Course Name:</strong> {data.courseName}</p>
           <p><strong>Course Type:</strong> {data.courseType}</p>
-          <p><strong>Hours Per Day:</strong> {hoursPerDay} minutes</p>
+          <p><strong>Hours Per Day:</strong> {minsPerDay} minutes</p>
           <p><strong>Course Days:</strong> {courseDays} days</p>
           <p><strong>Total Duration:</strong> {durationInDays} days</p>
           <p><strong>Price:</strong> ₹{data.price}</p>
@@ -155,7 +155,7 @@ const AddCoursePage = () => {
                     />
                   </div>
                   <div>
-                    <Select<AddCourseForm>
+                    <MultiSelect<AddCourseForm>
                       name="courseType"
                       title="Course Type"
                       placeholder="Select course type"
@@ -169,8 +169,8 @@ const AddCoursePage = () => {
                     />
                   </div>
                   <div>
-                    <Select<AddCourseForm>
-                      name="hoursPerDay"
+                    <MultiSelect<AddCourseForm>
+                      name="minsPerDay"
                       title="Hours Per Day"
                       placeholder="Select hours per day"
                       required

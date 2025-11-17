@@ -7,7 +7,7 @@ export interface Course {
   courseId: string;
   courseName: string;
   courseType: "BEGINNER" | "INTERMEDIATE" | "ADVANCED" | "REFRESHER";
-  hoursPerDay: number;
+  minsPerDay: number;
   courseDays: number;
   price: number;
   enrolledStudents: number;
@@ -56,7 +56,7 @@ const GET_PAGINATED_COURSES = `
         courseId
         courseName
         courseType
-        hoursPerDay
+        minsPerDay
         courseDays
         price
         enrolledStudents
@@ -80,7 +80,10 @@ const GET_ALL_COURSES = `
       courseId
       courseName
       courseType
+      minsPerDay
+      courseDays
       price
+      enrolledStudents
       status
     }
   }
@@ -94,7 +97,7 @@ const GET_COURSE_BY_ID = `
       courseId
       courseName
       courseType
-      hoursPerDay
+      minsPerDay
       courseDays
       price
       enrolledStudents
@@ -118,7 +121,7 @@ const CREATE_COURSE = `
       courseId
       courseName
       courseType
-      hoursPerDay
+      minsPerDay
       courseDays
       price
       status
@@ -135,7 +138,7 @@ const UPDATE_COURSE = `
       courseId
       courseName
       courseType
-      hoursPerDay
+      minsPerDay
       courseDays
       price
       enrolledStudents
@@ -200,7 +203,7 @@ export const createCourse = async (inputType: {
   courseId: string;
   courseName: string;
   courseType: "BEGINNER" | "INTERMEDIATE" | "ADVANCED" | "REFRESHER";
-  hoursPerDay: number;
+  minsPerDay: number;
   courseDays: number;
   price: number;
   description: string;
@@ -218,7 +221,7 @@ export const updateCourse = async (updateData: {
   id: number;
   courseName?: string;
   courseType?: "BEGINNER" | "INTERMEDIATE" | "ADVANCED" | "REFRESHER";
-  hoursPerDay?: number;
+  minsPerDay?: number;
   courseDays?: number;
   price?: number;
   enrolledStudents?: number;

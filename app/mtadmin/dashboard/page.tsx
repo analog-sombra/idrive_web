@@ -281,7 +281,6 @@ const Dashboard = () => {
           icon={<AntDesignEyeOutlined />}
           onClick={() => {
             // Navigate to booking details
-            console.log("View booking:", record.bookingId);
           }}
         >
           View
