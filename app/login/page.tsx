@@ -14,7 +14,7 @@ export default function Home() {
             Welcome Back
           </h1>
           <p className="text-gray-600">
-            Sign in to Warranty Smart Management System
+            Sign in to iDrive Smart Management System
           </p>
         </div>
 
@@ -34,7 +34,7 @@ export default function Home() {
         {/* Footer */}
         <div className="text-center mt-6">
           <p className="text-gray-500 text-sm">
-            © 2025 Warranty Smart. All rights reserved.
+            © 2025 iDrive. All rights reserved.
           </p>
         </div>
       </div>

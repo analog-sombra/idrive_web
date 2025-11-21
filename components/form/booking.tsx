@@ -52,6 +52,41 @@ type FormService = {
   description: string;
 };
 
+type CreateBookingResponse = {
+  createBooking: {
+    id: number;
+    bookingId: string;
+    courseId: number;
+  };
+};
+
+type CreateBookingSessionResponse = {
+  createBookingSession: {
+    id: number;
+  };
+};
+
+// Types for availability checking
+type BookingSession = {
+  id: number;
+  slot: string;
+  sessionDate: string;
+  status: string;
+  booking?: {
+    id: number;
+    carId: number;
+    schoolId: number;
+  };
+};
+
+type Holiday = {
+  id: number;
+  startDate: string;
+  endDate: string;
+  holidayName: string;
+  schoolId: number;
+};
+
 // Helper function to generate time slots
 const generateTimeSlots = (
   startTime: string,
@@ -157,18 +192,63 @@ const BookingForm = () => {
 
   const schoolData = schoolResponse?.data?.getSchoolById;
 
-  // Generate time slots based on school timings
-  useEffect(() => {
-    if (schoolData?.dayStartTime && schoolData?.dayEndTime) {
-      const slots = generateTimeSlots(
-        schoolData.dayStartTime,
-        schoolData.dayEndTime,
-        schoolData.lunchStartTime || undefined,
-        schoolData.lunchEndTime || undefined
-      );
-      setAvailableTimeSlots(slots);
-    }
-  }, [schoolData]);
+  // Fetch booking sessions for selected date to check availability
+  const {
+    data: sessionsResponse,
+  } = useQuery({
+    queryKey: ["booking-sessions", bookingDate?.format("YYYY-MM-DD"), schoolId],
+    queryFn: async () => {
+      if (!bookingDate) return null;
+      
+      return await ApiCall({
+        query: `query GetAllBookingSession($whereSearchInput: BookingSessionWhereSearchInput) {
+          getAllBookingSession(whereSearchInput: $whereSearchInput) {
+            id
+            slot
+            sessionDate
+            status
+            booking {
+              id
+              carId
+              schoolId
+            }
+          }
+        }`,
+        variables: {
+          whereSearchInput: {
+            sessionDate: bookingDate.format("YYYY-MM-DD"),
+          },
+        },
+      });
+    },
+    enabled: !!bookingDate && schoolId > 0,
+  });
+
+  // Fetch holidays to check if selected date is a holiday
+  const {
+    data: holidaysResponse,
+  } = useQuery({
+    queryKey: ["holidays", schoolId],
+    queryFn: async () => {
+      return await ApiCall({
+        query: `query GetAllHoliday($whereSearchInput: HolidayWhereSearchInput) {
+          getAllHoliday(whereSearchInput: $whereSearchInput) {
+            id
+            startDate
+            endDate
+            holidayName
+            schoolId
+          }
+        }`,
+        variables: {
+          whereSearchInput: {
+            schoolId: schoolId,
+          },
+        },
+      });
+    },
+    enabled: schoolId > 0,
+  });
 
   // Fetch cars for the school (only if car not provided in URL)
   const {
@@ -248,7 +328,7 @@ const BookingForm = () => {
       customerMobile: "",
       customerName: "",
       customerEmail: "",
-      courseId: "",
+      courseId: 0,
       courseName: "",
       coursePrice: 0,
       services: [],
@@ -280,11 +360,73 @@ const BookingForm = () => {
   // Watch for course selection changes
   useEffect(() => {
     const courseId = formValues.courseId;
-    if (courseId && courses.length > 0) {
+    if (courseId && courseId !== 0 && courses.length > 0) {
       handleCourseChange(courseId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formValues.courseId, courses]);
+
+  // Generate time slots based on school timings and filter by availability
+  useEffect(() => {
+    if (schoolData?.dayStartTime && schoolData?.dayEndTime) {
+      const allSlots = generateTimeSlots(
+        schoolData.dayStartTime,
+        schoolData.dayEndTime,
+        schoolData.lunchStartTime || undefined,
+        schoolData.lunchEndTime || undefined
+      );
+
+      // Filter out booked and holiday slots
+      if (bookingDate && (formValues.carId || carIdFromUrl)) {
+        const selectedCarId = parseInt(formValues.carId || carIdFromUrl);
+        const selectedDateStr = bookingDate.format("YYYY-MM-DD");
+
+        // Get holidays data
+        const holidays: Holiday[] = holidaysResponse?.data?.getAllHoliday || [];
+
+        // Check if selected date is a holiday
+        const isHoliday = holidays.some((holiday: Holiday) => {
+          const holidayStart = dayjs.utc(holiday.startDate).format("YYYY-MM-DD");
+          const holidayEnd = dayjs.utc(holiday.endDate).format("YYYY-MM-DD");
+          return selectedDateStr >= holidayStart && selectedDateStr <= holidayEnd;
+        });
+
+        if (isHoliday) {
+          // No slots available on holidays
+          setAvailableTimeSlots([]);
+        } else {
+          // Get booking sessions data and filter for current school
+          const allSessions: BookingSession[] = sessionsResponse?.data?.getAllBookingSession || [];
+          const bookingSessions = allSessions.filter(
+            (session: BookingSession) => session.booking?.schoolId === schoolId
+          );
+
+          // Filter out booked slots for the selected car
+          const bookedSlots = bookingSessions
+            .filter(
+              (session: BookingSession) =>
+                session.booking?.carId === selectedCarId &&
+                session.status !== "CANCELLED"
+            )
+            .map((session: BookingSession) => session.slot);
+
+          const availableSlots = allSlots.filter((slot) => !bookedSlots.includes(slot));
+          setAvailableTimeSlots(availableSlots);
+        }
+      } else {
+        // No car or date selected, show all slots
+        setAvailableTimeSlots(allSlots);
+      }
+    }
+  }, [
+    schoolData,
+    bookingDate,
+    formValues.carId,
+    carIdFromUrl,
+    sessionsResponse,
+    holidaysResponse,
+    schoolId,
+  ]);
 
   // Fetch customer details when mobile number is entered
   const fetchCustomerDetails = async (mobile: string) => {
@@ -357,11 +499,11 @@ const BookingForm = () => {
   };
 
   // Handle course selection
-  const handleCourseChange = (courseId: string) => {
-    const course = courses.find((c) => c.id.toString() === courseId);
+  const handleCourseChange = (courseId: string | number) => {
+    const course = courses.find((c) => c.id.toString() === courseId.toString());
     if (course) {
       setSelectedCourse(course);
-      setValue("courseId", courseId);
+      setValue("courseId", course.id);
       setValue("courseName", course.name);
       setValue("coursePrice", course.price);
       calculateTotal(course.price, selectedServices);
@@ -451,7 +593,7 @@ const BookingForm = () => {
       errors.push("Customer details could not be loaded");
     }
 
-    if (!formValues.courseId) {
+    if (!formValues.courseId || formValues.courseId === 0) {
       errors.push("Please select a course");
     }
 
@@ -480,24 +622,136 @@ const BookingForm = () => {
 
   // Mutation for API call
   const { mutate, isPending } = useMutation({
-    mutationFn: (data: BookingFormData) => {
-      return ApiCall({
-        query: `mutation CreateBooking($data: BookingInput!) {
-          createBooking(data: $data) {
+    mutationFn: async (data: BookingFormData) => {
+      // Generate booking ID
+      const bookingId = `BK${Date.now()}${Math.floor(Math.random() * 1000)}`;
+
+      // Create booking
+      const bookingResponse = await ApiCall({
+        query: `mutation CreateBooking($inputType: CreateBookingInput!) {
+          createBooking(inputType: $inputType) {
             id
-            success
+            bookingId
+            courseId
           }
         }`,
-        variables: { data },
+        variables: {
+          inputType: {
+            schoolId: schoolId,
+            bookingId: bookingId,
+            carId: parseInt(data.carId),
+            carName: data.carName,
+            slot: data.slot,
+            bookingDate: data.bookingDate,
+            customerMobile: data.customerMobile,
+            customerName: data.customerName,
+            customerEmail: data.customerEmail,
+            customerId: customerData?.id,
+            courseId: data.courseId,
+            courseName: data.courseName,
+            coursePrice: data.coursePrice,
+            totalAmount: data.totalAmount,
+            notes: data.notes,
+          },
+        },
       });
+
+      if (!bookingResponse.status || !(bookingResponse.data as CreateBookingResponse)?.createBooking) {
+        throw new Error(bookingResponse.message || "Failed to create booking");
+      }
+
+      const createdBooking = (bookingResponse.data as CreateBookingResponse).createBooking;
+
+      // Create booking services if services are selected
+      if (data.selectedServices && data.selectedServices.length > 0) {
+        const servicePromises = data.selectedServices.map((service) =>
+          ApiCall({
+            query: `mutation CreateBookingService($inputType: CreateBookingServiceInput!) {
+              createBookingService(inputType: $inputType) {
+                id
+              }
+            }`,
+            variables: {
+              inputType: {
+                bookingId: createdBooking.id,
+                serviceId: service.id,
+                serviceName: service.name,
+                serviceType: service.serviceType,
+                price: service.price,
+                description: service.description,
+              },
+            },
+          })
+        );
+
+        // Wait for all booking services to be created
+        await Promise.all(servicePromises);
+      }
+
+      // Create booking sessions based on course days
+      if (selectedCourse && selectedCourse.courseDays > 0) {
+        const bookingStartDate = dayjs(data.bookingDate);
+        const sessionPromises = [];
+
+        for (let day = 1; day <= selectedCourse.courseDays; day++) {
+          // Calculate session date (skip weekends if configured)
+          let sessionDate = bookingStartDate.clone();
+          let daysAdded = 0;
+          
+          while (daysAdded < day - 1) {
+            sessionDate = sessionDate.add(1, 'day');
+            
+            // Skip weekly holiday if configured
+            if (schoolData?.weeklyHoliday) {
+              const dayOfWeek = sessionDate.day();
+              const weeklyHoliday = schoolData.weeklyHoliday.toUpperCase();
+              const dayMap: { [key: string]: number } = {
+                'SUNDAY': 0, 'MONDAY': 1, 'TUESDAY': 2, 'WEDNESDAY': 3,
+                'THURSDAY': 4, 'FRIDAY': 5, 'SATURDAY': 6
+              };
+              
+              if (dayOfWeek === dayMap[weeklyHoliday]) {
+                continue; // Skip this day
+              }
+            }
+            
+            daysAdded++;
+          }
+
+          const sessionPromise = ApiCall({
+            query: `mutation CreateBookingSession($inputType: CreateBookingSessionInput!) {
+              createBookingSession(inputType: $inputType) {
+                id
+              }
+            }`,
+            variables: {
+              inputType: {
+                bookingId: createdBooking.id,
+                dayNumber: day,
+                sessionDate: sessionDate.format('YYYY-MM-DD'),
+                slot: data.slot,
+                carId: parseInt(data.carId),
+                carName: data.carName,
+              },
+            },
+          });
+
+          sessionPromises.push(sessionPromise);
+        }
+
+        // Wait for all sessions to be created
+        await Promise.all(sessionPromises);
+      }
+
+      return bookingResponse;
     },
     onSuccess: () => {
-      toast.success("Booking created successfully!");
+      toast.success("Booking, services, and sessions created successfully!");
       setShowConfirmModal(false);
       router.push("/mtadmin/scheduler");
     },
-    onError: () => {
-      toast.error("Failed to create booking. Please try again.");
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to create booking. Please try again.");
     },
   });
 
@@ -702,34 +956,7 @@ const BookingForm = () => {
                     )}
                   </div>
 
-                  {/* Time Slot Selection */}
-                  <div className="bg-purple-50 rounded-lg p-4 border-2 border-purple-200">
-                    <div className="flex items-center gap-2 mb-2">
-                      <ClockCircleOutlined className="text-purple-600" />
-                      <span className="text-xs font-semibold text-gray-600">
-                        Time Slot
-                      </span>
-                    </div>
-                    {slotFromUrl ? (
-                      <p className="text-lg font-bold text-gray-900">
-                        {formValues.slot || "Not selected"}
-                      </p>
-                    ) : (
-                      <MultiSelect<BookingFormData>
-                        name="slot"
-                        title=""
-                        placeholder={availableTimeSlots.length === 0 ? "Loading slots..." : "Select time slot"}
-                        required={true}
-                        options={availableTimeSlots.map((slot) => ({
-                          value: slot,
-                          label: slot,
-                        }))}
-                        disable={availableTimeSlots.length === 0}
-                      />
-                    )}
-                  </div>
-
-                  {/* Date Selection */}
+                  {/* Date Selection - Moved before Time Slot */}
                   <div className="bg-green-50 rounded-lg p-4 border-2 border-green-200">
                     <div className="flex items-center gap-2 mb-2">
                       <CalendarOutlined className="text-green-600" />
@@ -790,6 +1017,49 @@ const BookingForm = () => {
                       }}
                       placeholder={minDateParam ? `Available from ${dayjs(minDateParam).format('DD MMM YYYY')}` : "Select date"}
                     />
+                  </div>
+
+                  {/* Time Slot Selection - Moved after Date */}
+                  <div className="bg-purple-50 rounded-lg p-4 border-2 border-purple-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <ClockCircleOutlined className="text-purple-600" />
+                        <span className="text-xs font-semibold text-gray-600">
+                          Time Slot
+                        </span>
+                      </div>
+                      {bookingDate && (formValues.carId || carIdFromUrl) && (
+                        <Tag color={availableTimeSlots.length > 0 ? "green" : "red"} className="text-xs">
+                          {availableTimeSlots.length > 0 
+                            ? `${availableTimeSlots.length} available` 
+                            : "No slots"}
+                        </Tag>
+                      )}
+                    </div>
+                    {slotFromUrl ? (
+                      <p className="text-lg font-bold text-gray-900">
+                        {formValues.slot || "Not selected"}
+                      </p>
+                    ) : (
+                      <>
+                        <MultiSelect<BookingFormData>
+                          name="slot"
+                          title=""
+                          placeholder={!bookingDate ? "Select date first" : availableTimeSlots.length === 0 ? "No slots available" : "Select time slot"}
+                          required={true}
+                          options={availableTimeSlots.map((slot) => ({
+                            value: slot,
+                            label: slot,
+                          }))}
+                          disable={!bookingDate || availableTimeSlots.length === 0}
+                        />
+                        {bookingDate && availableTimeSlots.length === 0 && (
+                          <p className="text-xs text-red-600 mt-1">
+                            All slots are booked or this is a holiday
+                          </p>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

@@ -25,8 +25,8 @@ export const BookingSchema = v.pipe(
     customerName: v.optional(v.string()),
     customerEmail: v.optional(v.string()),
     courseId: v.pipe(
-      v.string(),
-      v.minLength(1, "Please select a course")
+      v.number(),
+      v.minValue(1, "Please select a course")
     ),
     courseName: v.string(),
     coursePrice: v.number(),

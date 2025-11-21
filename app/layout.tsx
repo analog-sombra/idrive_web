@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Warranty",
+  title: "Idrive",
   description: "Turning After-Sales into Forever-Sales.",
 };
 
