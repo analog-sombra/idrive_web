@@ -1,6 +1,6 @@
 "use client";
 
-import { Card, Row, Col, Statistic, Table, Tag, Button } from "antd";
+import { Card, Row, Col, Statistic, Table, Tag, Button, Spin } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import {
   IcBaselineRefresh,
@@ -9,113 +9,54 @@ import {
   AntDesignEditOutlined,
 } from "@/components/icons";
 import { useRouter } from "next/navigation";
-
-interface SchoolData {
-  key: string;
-  schoolId: string;
-  name: string;
-  registrationNumber: string;
-  email: string;
-  phone: string;
-  location: string;
-  totalStudents: number;
-  totalInstructors: number;
-  totalVehicles: number;
-  status: "active" | "inactive" | "suspended";
-  joinedDate: string;
-}
+import { useQuery } from "@tanstack/react-query";
+import {
+  getSchoolStatistics,
+  getAllSchoolsWithCounts,
+  type SchoolWithCounts,
+} from "@/services/school.api";
+import dayjs from "dayjs";
 
 const AdminDashboard = () => {
   const router = useRouter();
 
-  // Mock data for statistics
-  const stats = {
-    totalSchools: 15,
-    activeSchools: 12,
-    totalStudents: 1245,
-    totalRevenue: 2456000,
+  // Fetch statistics
+  const {
+    data: statsResponse,
+    isLoading: statsLoading,
+    refetch: refetchStats,
+  } = useQuery({
+    queryKey: ["schoolStatistics"],
+    queryFn: getSchoolStatistics,
+  });
+
+  const stats = statsResponse?.data?.getSchoolStatistics;
+
+  // Fetch schools with counts
+  const {
+    data: schoolsResponse,
+    isLoading: schoolsLoading,
+    refetch: refetchSchools,
+  } = useQuery({
+    queryKey: ["schoolsWithCounts"],
+    queryFn: getAllSchoolsWithCounts,
+  });
+
+  const schools: SchoolWithCounts[] =
+    schoolsResponse?.data?.getAllSchoolWithCounts || [];
+
+  const handleRefresh = () => {
+    refetchStats();
+    refetchSchools();
   };
 
-  // Mock data for schools
-  const schools: SchoolData[] = [
-    {
-      key: "1",
-      schoolId: "SCH-001",
-      name: "iDrive Driving School - Rohini",
-      registrationNumber: "DL/DS/2022/12345",
-      email: "rohini@idrive.com",
-      phone: "+91 9876543210",
-      location: "Rohini, New Delhi",
-      totalStudents: 245,
-      totalInstructors: 12,
-      totalVehicles: 15,
-      status: "active",
-      joinedDate: "2022-01-15",
-    },
-    {
-      key: "2",
-      schoolId: "SCH-002",
-      name: "iDrive Driving School - Dwarka",
-      registrationNumber: "DL/DS/2022/12346",
-      email: "dwarka@idrive.com",
-      phone: "+91 9876543211",
-      location: "Dwarka, New Delhi",
-      totalStudents: 198,
-      totalInstructors: 10,
-      totalVehicles: 12,
-      status: "active",
-      joinedDate: "2022-03-20",
-    },
-    {
-      key: "3",
-      schoolId: "SCH-003",
-      name: "iDrive Driving School - Noida",
-      registrationNumber: "DL/DS/2022/12347",
-      email: "noida@idrive.com",
-      phone: "+91 9876543212",
-      location: "Noida, Uttar Pradesh",
-      totalStudents: 312,
-      totalInstructors: 15,
-      totalVehicles: 18,
-      status: "active",
-      joinedDate: "2022-05-10",
-    },
-    {
-      key: "4",
-      schoolId: "SCH-004",
-      name: "iDrive Driving School - Gurgaon",
-      registrationNumber: "DL/DS/2022/12348",
-      email: "gurgaon@idrive.com",
-      phone: "+91 9876543213",
-      location: "Gurgaon, Haryana",
-      totalStudents: 156,
-      totalInstructors: 8,
-      totalVehicles: 10,
-      status: "active",
-      joinedDate: "2022-07-15",
-    },
-    {
-      key: "5",
-      schoolId: "SCH-005",
-      name: "iDrive Driving School - Faridabad",
-      registrationNumber: "DL/DS/2023/12349",
-      email: "faridabad@idrive.com",
-      phone: "+91 9876543214",
-      location: "Faridabad, Haryana",
-      totalStudents: 89,
-      totalInstructors: 6,
-      totalVehicles: 8,
-      status: "inactive",
-      joinedDate: "2023-02-20",
-    },
-  ];
-
-  const columns: ColumnsType<SchoolData> = [
+  const columns: ColumnsType<SchoolWithCounts> = [
     {
       title: "School ID",
-      dataIndex: "schoolId",
-      key: "schoolId",
-      width: 120,
+      dataIndex: "id",
+      key: "id",
+      width: 100,
+      render: (id) => `SCH-${String(id).padStart(3, "0")}`,
     },
     {
       title: "School Name",
@@ -125,7 +66,7 @@ const AdminDashboard = () => {
       render: (text, record) => (
         <div>
           <div className="font-semibold text-gray-900">{text}</div>
-          <div className="text-xs text-gray-500">{record.location}</div>
+          <div className="text-xs text-gray-500">{record.address}</div>
         </div>
       ),
     },
@@ -135,34 +76,34 @@ const AdminDashboard = () => {
       width: 200,
       render: (_, record) => (
         <div>
-          <div className="text-sm">{record.email}</div>
+          <div className="text-sm">{record.email || "N/A"}</div>
           <div className="text-xs text-gray-500">{record.phone}</div>
         </div>
       ),
     },
     {
       title: "Students",
-      dataIndex: "totalStudents",
-      key: "totalStudents",
+      dataIndex: "userCount",
+      key: "userCount",
       width: 100,
       align: "center",
-      sorter: (a, b) => a.totalStudents - b.totalStudents,
+      sorter: (a, b) => (a.userCount || 0) - (b.userCount || 0),
     },
     {
       title: "Instructors",
-      dataIndex: "totalInstructors",
-      key: "totalInstructors",
+      dataIndex: "driverCount",
+      key: "driverCount",
       width: 110,
       align: "center",
-      sorter: (a, b) => a.totalInstructors - b.totalInstructors,
+      sorter: (a, b) => (a.driverCount || 0) - (b.driverCount || 0),
     },
     {
       title: "Vehicles",
-      dataIndex: "totalVehicles",
-      key: "totalVehicles",
+      dataIndex: "carCount",
+      key: "carCount",
       width: 100,
       align: "center",
-      sorter: (a, b) => a.totalVehicles - b.totalVehicles,
+      sorter: (a, b) => (a.carCount || 0) - (b.carCount || 0),
     },
     {
       title: "Status",
@@ -170,11 +111,11 @@ const AdminDashboard = () => {
       key: "status",
       width: 120,
       align: "center",
-      render: (status: "active" | "inactive" | "suspended") => {
+      render: (status: "ACTIVE" | "INACTIVE" | "SUSPENDED") => {
         const config = {
-          active: { color: "green", text: "Active" },
-          inactive: { color: "red", text: "Inactive" },
-          suspended: { color: "orange", text: "Suspended" },
+          ACTIVE: { color: "green", text: "Active" },
+          INACTIVE: { color: "red", text: "Inactive" },
+          SUSPENDED: { color: "orange", text: "Suspended" },
         };
         return (
           <Tag color={config[status].color} className="!text-sm !px-3 !py-1">
@@ -185,11 +126,11 @@ const AdminDashboard = () => {
     },
     {
       title: "Joined Date",
-      dataIndex: "joinedDate",
-      key: "joinedDate",
+      dataIndex: "createdAt",
+      key: "createdAt",
       width: 130,
-      sorter: (a, b) => a.joinedDate.localeCompare(b.joinedDate),
-      render: (date) => new Date(date).toLocaleDateString("en-IN"),
+      sorter: (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      render: (date) => dayjs(date).format("DD MMM, YYYY"),
     },
     {
       title: "Action",
@@ -202,7 +143,7 @@ const AdminDashboard = () => {
             type="default"
             icon={<AntDesignEyeOutlined />}
             size="small"
-            onClick={() => router.push(`/admin/school/${record.schoolId}`)}
+            onClick={() => router.push(`/admin/school/${record.id}`)}
           >
             View
           </Button>
@@ -210,9 +151,7 @@ const AdminDashboard = () => {
             type="primary"
             icon={<AntDesignEditOutlined />}
             size="small"
-            onClick={() =>
-              router.push(`/admin/school/${record.schoolId}/edit`)
-            }
+            onClick={() => router.push(`/admin/school/${record.id}/edit`)}
             className="!bg-blue-600"
           >
             Edit
@@ -240,6 +179,8 @@ const AdminDashboard = () => {
               type="default"
               icon={<IcBaselineRefresh className="text-lg" />}
               size="large"
+              onClick={handleRefresh}
+              loading={statsLoading || schoolsLoading}
             >
               Refresh
             </Button>
@@ -260,12 +201,12 @@ const AdminDashboard = () => {
         {/* Statistics Cards */}
         <Row gutter={[20, 20]}>
           <Col xs={24} sm={12} lg={6}>
-            <Card className="shadow-sm hover:shadow-md transition-all">
+            <Card className="shadow-sm hover:shadow-md transition-all" loading={statsLoading}>
               <Statistic
                 title={
                   <span className="text-gray-600 text-sm">Total Schools</span>
                 }
-                value={stats.totalSchools}
+                value={stats?.totalSchools || 0}
                 prefix={<span className="text-3xl">🏫</span>}
                 valueStyle={{
                   color: "#1890ff",
@@ -276,12 +217,12 @@ const AdminDashboard = () => {
             </Card>
           </Col>
           <Col xs={24} sm={12} lg={6}>
-            <Card className="shadow-sm hover:shadow-md transition-all">
+            <Card className="shadow-sm hover:shadow-md transition-all" loading={statsLoading}>
               <Statistic
                 title={
                   <span className="text-gray-600 text-sm">Active Schools</span>
                 }
-                value={stats.activeSchools}
+                value={stats?.activeSchools || 0}
                 prefix={<span className="text-3xl">✅</span>}
                 valueStyle={{
                   color: "#52c41a",
@@ -292,12 +233,12 @@ const AdminDashboard = () => {
             </Card>
           </Col>
           <Col xs={24} sm={12} lg={6}>
-            <Card className="shadow-sm hover:shadow-md transition-all">
+            <Card className="shadow-sm hover:shadow-md transition-all" loading={statsLoading}>
               <Statistic
                 title={
-                  <span className="text-gray-600 text-sm">Total Students</span>
+                  <span className="text-gray-600 text-sm">Total Users</span>
                 }
-                value={stats.totalStudents}
+                value={stats?.totalUsers || 0}
                 prefix={<span className="text-3xl">👥</span>}
                 valueStyle={{
                   color: "#722ed1",
@@ -308,13 +249,13 @@ const AdminDashboard = () => {
             </Card>
           </Col>
           <Col xs={24} sm={12} lg={6}>
-            <Card className="shadow-sm hover:shadow-md transition-all">
+            <Card className="shadow-sm hover:shadow-md transition-all" loading={statsLoading}>
               <Statistic
                 title={
-                  <span className="text-gray-600 text-sm">Total Revenue</span>
+                  <span className="text-gray-600 text-sm">Total Bookings</span>
                 }
-                value={stats.totalRevenue}
-                prefix="₹"
+                value={stats?.totalBookings || 0}
+                prefix={<span className="text-3xl">📅</span>}
                 valueStyle={{
                   color: "#fa8c16",
                   fontSize: "28px",
@@ -348,6 +289,8 @@ const AdminDashboard = () => {
             pagination={{ pageSize: 5 }}
             scroll={{ x: 1300 }}
             size="middle"
+            loading={schoolsLoading}
+            rowKey="id"
           />
         </Card>
         <div></div>

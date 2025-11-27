@@ -17,8 +17,13 @@ import {
   Fa6RegularPenToSquare,
 } from "@/components/icons";
 import { useRouter } from "next/navigation";
-import { getSchoolById } from "@/services/school.api";
+import {
+  getSchoolById,
+  getSchoolDashboardStats,
+} from "@/services/school.api";
+import { getAllBookings } from "@/services/booking.api";
 import { getCookie } from "cookies-next";
+import { useQuery } from "@tanstack/react-query";
 
 interface BookingData {
   key: string;
@@ -47,6 +52,41 @@ const Dashboard = () => {
   const [checkingProfile, setCheckingProfile] = useState(true);
 
   const schoolId: number = parseInt(getCookie("school")?.toString() || "0");
+
+  // Fetch dashboard statistics
+  const {
+    data: statsData,
+    isLoading: statsLoading,
+    refetch: refetchStats,
+  } = useQuery({
+    queryKey: ["schoolDashboardStats", schoolId],
+    queryFn: async () => {
+      const response = await getSchoolDashboardStats(schoolId);
+      return response.data?.getSchoolDashboardStats;
+    },
+    enabled: schoolId > 0,
+  });
+
+  // Fetch recent bookings
+  const {
+    data: bookingsData,
+    isLoading: bookingsLoading,
+    refetch: refetchBookings,
+  } = useQuery({
+    queryKey: ["recentBookings", schoolId],
+    queryFn: async () => {
+      const response = await getAllBookings({
+        schoolId,
+      });
+      return response.data?.getAllBooking?.slice(0, 5) || [];
+    },
+    enabled: schoolId > 0,
+  });
+
+  const handleRefresh = () => {
+    void refetchStats();
+    void refetchBookings();
+  };
 
   // Check profile completion on mount
   useEffect(() => {
@@ -98,77 +138,29 @@ const Dashboard = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Mock data for statistics
-  const stats = {
-    todayBookings: 24,
-    pendingBookings: 12,
-    totalRevenue: 45600,
-    activeCustomers: 156,
+  const stats = statsData || {
+    todayBookings: 0,
+    pendingBookings: 0,
+    totalRevenue: 0,
+    activeCustomers: 0,
   };
 
-  // Mock data for recent bookings
-  const recentBookings: BookingData[] = [
-    {
-      key: "1",
-      bookingId: "BK-2024-001",
-      customerName: "Rajesh Kumar",
-      mobile: "9876543210",
-      course: "Basic Driving",
-      date: "2024-11-12",
-      slot: "09:00 AM - 10:00 AM",
-      carName: "Swift Dzire - DL01AB1234",
-      status: "pending",
-      amount: 2500,
-    },
-    {
-      key: "2",
-      bookingId: "BK-2024-002",
-      customerName: "Priya Sharma",
-      mobile: "9876543211",
-      course: "Advanced Driving",
-      date: "2024-11-12",
-      slot: "10:00 AM - 11:00 AM",
-      carName: "Honda City - DL01AB2345",
-      status: "completed",
-      amount: 3500,
-    },
-    {
-      key: "3",
-      bookingId: "BK-2024-003",
-      customerName: "Amit Singh",
-      mobile: "9876543212",
-      course: "Highway Driving",
-      date: "2024-11-12",
-      slot: "11:00 AM - 12:00 PM",
-      carName: "Hyundai Venue - DL01AB3456",
-      status: "pending",
-      amount: 4500,
-    },
-    {
-      key: "4",
-      bookingId: "BK-2024-004",
-      customerName: "Sneha Reddy",
-      mobile: "9876543213",
-      course: "Basic Driving",
-      date: "2024-11-12",
-      slot: "02:00 PM - 03:00 PM",
-      carName: "Maruti Baleno - DL01AB4567",
-      status: "cancelled",
-      amount: 2500,
-    },
-    {
-      key: "5",
-      bookingId: "BK-2024-005",
-      customerName: "Vikram Patel",
-      mobile: "9876543214",
-      course: "Parking Practice",
-      date: "2024-11-13",
-      slot: "09:00 AM - 10:00 AM",
-      carName: "Swift Dzire - DL01AB1234",
-      status: "pending",
-      amount: 1800,
-    },
-  ];
+  const recentBookings: BookingData[] =
+    bookingsData?.map((booking) => ({
+      key: booking.id.toString(),
+      bookingId: booking.bookingId,
+      customerName: booking.customerName || "N/A",
+      mobile: booking.customerMobile,
+      course: booking.courseName,
+      date: new Date(booking.bookingDate).toLocaleDateString(),
+      slot: booking.slot,
+      carName: booking.carName,
+      status: booking.status.toLowerCase() as
+        | "pending"
+        | "completed"
+        | "cancelled",
+      amount: booking.totalAmount,
+    })) || [];
 
   // Mock data for alerts
   const alerts: AlertData[] = [
@@ -274,7 +266,7 @@ const Dashboard = () => {
     {
       title: "Action",
       key: "action",
-      render: (_, record) => (
+      render: () => (
         <Button
           type="link"
           size="small"
@@ -304,6 +296,8 @@ const Dashboard = () => {
             type="primary"
             icon={<IcBaselineRefresh className="text-lg" />}
             size="large"
+            onClick={handleRefresh}
+            loading={statsLoading || bookingsLoading}
             className="!bg-gradient-to-r from-blue-600 to-purple-600 border-0 shadow-md"
           >
             Refresh
@@ -352,14 +346,17 @@ const Dashboard = () => {
         {/* Statistics Cards */}
         <Row gutter={[20, 20]}>
           <Col xs={24} sm={12} lg={6}>
-            <Card className="shadow-sm hover:shadow-md transition-all">
+            <Card
+              className="shadow-sm hover:shadow-md transition-all"
+              loading={statsLoading}
+            >
               <Statistic
                 title={
                   <span className="text-gray-600 text-sm">
                     Today&apos;s Bookings
                   </span>
                 }
-                value={stats.todayBookings}
+                value={stats?.todayBookings || 0}
                 prefix={
                   <MaterialSymbolsCalendarClockRounded className="text-blue-600 text-3xl" />
                 }
@@ -372,14 +369,17 @@ const Dashboard = () => {
             </Card>
           </Col>
           <Col xs={24} sm={12} lg={6}>
-            <Card className="shadow-sm hover:shadow-md transition-all">
+            <Card
+              className="shadow-sm hover:shadow-md transition-all"
+              loading={statsLoading}
+            >
               <Statistic
                 title={
                   <span className="text-gray-600 text-sm">
                     Pending Bookings
                   </span>
                 }
-                value={stats.pendingBookings}
+                value={stats?.pendingBookings || 0}
                 prefix={
                   <Fa6RegularHourglassHalf className="text-orange-600 text-3xl" />
                 }
@@ -392,12 +392,15 @@ const Dashboard = () => {
             </Card>
           </Col>
           <Col xs={24} sm={12} lg={6}>
-            <Card className="shadow-sm hover:shadow-md transition-all">
+            <Card
+              className="shadow-sm hover:shadow-md transition-all"
+              loading={statsLoading}
+            >
               <Statistic
                 title={
                   <span className="text-gray-600 text-sm">Total Revenue</span>
                 }
-                value={stats.totalRevenue}
+                value={stats?.totalRevenue || 0}
                 prefix={
                   <RiMoneyRupeeCircleLine className="text-green-600 text-3xl" />
                 }
@@ -410,14 +413,17 @@ const Dashboard = () => {
             </Card>
           </Col>
           <Col xs={24} sm={12} lg={6}>
-            <Card className="shadow-sm hover:shadow-md transition-all">
+            <Card
+              className="shadow-sm hover:shadow-md transition-all"
+              loading={statsLoading}
+            >
               <Statistic
                 title={
                   <span className="text-gray-600 text-sm">
                     Active Customers
                   </span>
                 }
-                value={stats.activeCustomers}
+                value={stats?.activeCustomers || 0}
                 prefix={
                   <MaterialSymbolsPersonRounded className="text-purple-600 text-3xl" />
                 }
@@ -471,7 +477,7 @@ const Dashboard = () => {
               <span className="font-semibold">Recent Bookings</span>
               <Button
                 type="link"
-                onClick={() => router.push("/mtadmin/scheduler")}
+                onClick={() => router.push("/mtadmin/bookinglist")}
                 className="text-blue-600"
               >
                 View All Bookings →
@@ -486,6 +492,8 @@ const Dashboard = () => {
             pagination={false}
             scroll={{ x: 1000 }}
             size="middle"
+            loading={bookingsLoading}
+            rowKey="key"
           />
         </Card>
         <div></div>

@@ -59,6 +59,43 @@ export interface UpdateSchoolResponse {
   updateSchool: School;
 }
 
+export interface SchoolStatistics {
+  totalSchools: number;
+  activeSchools: number;
+  inactiveSchools: number;
+  suspendedSchools: number;
+  totalUsers: number;
+  totalDrivers: number;
+  totalCars: number;
+  totalBookings: number;
+}
+
+export interface SchoolStatisticsResponse {
+  getSchoolStatistics: SchoolStatistics;
+}
+
+export interface SchoolWithCounts extends School {
+  userCount?: number;
+  driverCount?: number;
+  carCount?: number;
+  bookingCount?: number;
+}
+
+export interface AllSchoolsWithCountsResponse {
+  getAllSchoolWithCounts: SchoolWithCounts[];
+}
+
+export interface SchoolDashboardStats {
+  todayBookings: number;
+  pendingBookings: number;
+  totalRevenue: number;
+  activeCustomers: number;
+}
+
+export interface SchoolDashboardStatsResponse {
+  getSchoolDashboardStats: SchoolDashboardStats;
+}
+
 // GraphQL Queries
 const GET_PAGINATED_SCHOOLS = `
   query GetPaginatedSchool($searchPaginationInput: SearchPaginationInput!, $whereSearchInput: WhereSchoolSearchInput!) {
@@ -187,6 +224,57 @@ const UPDATE_SCHOOL = `
   }
 `;
 
+const GET_SCHOOL_STATISTICS = `
+  query GetSchoolStatistics {
+    getSchoolStatistics {
+      totalSchools
+      activeSchools
+      inactiveSchools
+      suspendedSchools
+      totalUsers
+      totalDrivers
+      totalCars
+      totalBookings
+    }
+  }
+`;
+
+const GET_ALL_SCHOOLS_WITH_COUNTS = `
+  query GetAllSchoolWithCounts {
+    getAllSchoolWithCounts {
+      id
+      name
+      email
+      phone
+      alternatePhone
+      address
+      registrationNumber
+      gstNumber
+      establishedYear
+      website
+      logo
+      status
+      createdAt
+      updatedAt
+      userCount
+      driverCount
+      carCount
+      bookingCount
+    }
+  }
+`;
+
+const GET_SCHOOL_DASHBOARD_STATS = `
+  query GetSchoolDashboardStats($schoolId: Int!) {
+    getSchoolDashboardStats(schoolId: $schoolId) {
+      todayBookings
+      pendingBookings
+      totalRevenue
+      activeCustomers
+    }
+  }
+`;
+
 // API Functions
 export const getPaginatedSchools = async (variables: {
   searchPaginationInput: {
@@ -278,5 +366,26 @@ export const updateSchool = async (updateData: {
   return ApiCall<UpdateSchoolResponse>({
     query: UPDATE_SCHOOL,
     variables: { id, updateType: { id, ...updateType } },
+  });
+};
+
+export const getSchoolStatistics = async () => {
+  return ApiCall<SchoolStatisticsResponse>({
+    query: GET_SCHOOL_STATISTICS,
+    variables: {},
+  });
+};
+
+export const getAllSchoolsWithCounts = async () => {
+  return ApiCall<AllSchoolsWithCountsResponse>({
+    query: GET_ALL_SCHOOLS_WITH_COUNTS,
+    variables: {},
+  });
+};
+
+export const getSchoolDashboardStats = async (schoolId: number) => {
+  return ApiCall<SchoolDashboardStatsResponse>({
+    query: GET_SCHOOL_DASHBOARD_STATS,
+    variables: { schoolId },
   });
 };

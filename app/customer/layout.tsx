@@ -1,164 +1,45 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Layout, Menu, Button, Avatar, Dropdown, Tooltip } from "antd";
+import { Layout, Menu, Button, Avatar, Dropdown } from "antd";
 import type { MenuProps } from "antd";
 import {
   FluentMdl2ViewDashboard,
-  IcBaselineCalendarMonth,
-  AntDesignPlusCircleOutlined,
-  AntDesignEditOutlined,
-  Fa6RegularCalendarXmark,
-  MaterialSymbolsLogout,
   MaterialSymbolsPersonRounded,
+  MaterialSymbolsLogout,
   MaterialSymbolsKeyboardDoubleArrowLeft,
   MaterialSymbolsKeyboardDoubleArrowRight,
   IcBaselineAccountCircle,
 } from "@/components/icons";
 import { deleteCookie, getCookie } from "cookies-next";
-import { getSchoolById } from "@/services/school.api";
 
 const { Sider, Content } = Layout;
 
-const baseMenuItems = [
+const menuItems = [
   {
-    key: "/mtadmin/dashboard",
+    key: "/customer",
     icon: <FluentMdl2ViewDashboard className="text-lg" />,
     label: "Dashboard",
-    requiresProfile: false,
   },
   {
-    key: "/mtadmin/scheduler",
-    icon: <IcBaselineCalendarMonth className="text-lg" />,
-    label: "Scheduler",
-    requiresProfile: true,
-  },
-  {
-    key: "/mtadmin/booking",
-    icon: <AntDesignPlusCircleOutlined className="text-lg" />,
-    label: "New Booking",
-    requiresProfile: true,
-  },
-  {
-    key: "/mtadmin/bookinglist",
-    icon: <IcBaselineCalendarMonth className="text-lg" />,
-    label: "Booking List",
-    requiresProfile: true,
-  },
-  {
-    key: "/mtadmin/amendment",
-    icon: <AntDesignEditOutlined className="text-lg" />,
-    label: "Amendments",
-    requiresProfile: true,
-  },
-  {
-    key: "/mtadmin/user",
+    key: "/customer/profile",
     icon: <MaterialSymbolsPersonRounded className="text-lg" />,
-    label: "Users",
-    requiresProfile: true,
-  },
-  {
-    key: "/mtadmin/driver",
-    icon: <span className="text-lg">🚘</span>,
-    label: "Drivers",
-    requiresProfile: true,
-  },
-  {
-    key: "/mtadmin/course",
-    icon: <span className="text-lg">📚</span>,
-    label: "Courses",
-    requiresProfile: true,
-  },
-  {
-    key: "/mtadmin/car",
-    icon: <span className="text-lg">🚗</span>,
-    label: "Cars",
-    requiresProfile: true,
-  },
-  {
-    key: "/mtadmin/holiday",
-    icon: <Fa6RegularCalendarXmark className="text-lg" />,
-    label: "Holidays",
-    requiresProfile: true,
-  },
-  {
-    key: "/mtadmin/service",
-    icon: <span className="text-lg">🎫</span>,
-    label: "Services & Add-ons",
-    requiresProfile: true,
-  },
-  {
-    key: "/mtadmin/profile",
-    icon: <span className="text-lg">🏫</span>,
-    label: "School Profile",
-    requiresProfile: false,
+    label: "My Profile",
   },
 ];
 
-export default function MtAdminLayout({
+export default function CustomerLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false);
-  const [profileComplete, setProfileComplete] = useState(true);
   const pathname = usePathname();
   const router = useRouter();
 
-  const schoolId: number = parseInt(getCookie("school")?.toString() || "0");
-
-  // Check profile completion on mount
-  useEffect(() => {
-    const checkProfileCompletion = async () => {
-      try {
-        const response = await getSchoolById(schoolId);
-
-        if (response.status && response.data.getSchoolById) {
-          const school = response.data.getSchoolById;
-
-          // Check required fields for profile completion
-          const requiredFields = [
-            "dayStartTime",
-            "dayEndTime",
-            "ownerName",
-            "bankName",
-            "accountNumber",
-            "ifscCode",
-            "rtoLicenseNumber",
-          ];
-
-          const isComplete = requiredFields.every(
-            (field) => school[field as keyof typeof school]
-          );
-          setProfileComplete(isComplete);
-        }
-      } catch (error) {
-        console.error("Error checking profile completion:", error);
-      }
-    };
-
-    checkProfileCompletion();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Create menu items with disabled state
-  const menuItems = baseMenuItems.map((item) => ({
-    key: item.key,
-    icon: item.icon,
-    label:
-      item.requiresProfile && !profileComplete ? (
-        <Tooltip
-          title="Complete your school profile to access this feature"
-          placement="right"
-        >
-          <span>{item.label}</span>
-        </Tooltip>
-      ) : (
-        item.label
-      ),
-    disabled: item.requiresProfile && !profileComplete,
-  }));
+  const userName: string = getCookie("name")?.toString() || "Customer";
+  const userId: string = getCookie("id")?.toString() || "0";
 
   const handleMenuClick: MenuProps["onClick"] = (e) => {
     router.push(e.key);
@@ -171,7 +52,7 @@ export default function MtAdminLayout({
       label: "Profile",
     },
     {
-      type: "divider",
+      type: "divider" as const,
     },
     {
       key: "logout",
@@ -185,7 +66,10 @@ export default function MtAdminLayout({
     if (e.key === "logout") {
       deleteCookie("id");
       deleteCookie("role");
-      router.push("/adminlogin");
+      deleteCookie("name");
+      router.push("/login");
+    } else if (e.key === "profile") {
+      router.push("/customer/profile");
     }
   };
 
@@ -209,13 +93,13 @@ export default function MtAdminLayout({
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="h-16 flex items-center justify-center border-b border-gray-200 bg-gradient-to-r from-blue-600 to-purple-600">
+          <div className="h-16 flex items-center justify-center border-b border-gray-200 bg-gradient-to-r from-blue-600 to-cyan-600">
             {!collapsed ? (
               <h1 className="text-white text-xl font-bold tracking-wider">
-                iDrive School
+                iDrive Student
               </h1>
             ) : (
-              <h1 className="text-white text-2xl font-bold">iD</h1>
+              <h1 className="text-white text-2xl font-bold">📚</h1>
             )}
           </div>
 
@@ -260,15 +144,15 @@ export default function MtAdminLayout({
                 <Avatar
                   size={collapsed ? 32 : 40}
                   icon={<IcBaselineAccountCircle />}
-                  className="bg-gradient-to-r from-blue-600 to-purple-600"
+                  className="bg-gradient-to-r from-blue-600 to-cyan-600"
                 />
                 {!collapsed && (
                   <div className="flex-1 min-w-0">
                     <p className="text-gray-800 font-medium text-sm truncate">
-                      Admin User
+                      {userName}
                     </p>
                     <p className="text-gray-500 text-xs truncate">
-                      admin@idrive.com
+                      ID: {userId}
                     </p>
                   </div>
                 )}
