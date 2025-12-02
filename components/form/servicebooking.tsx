@@ -12,9 +12,9 @@ import { MultiSelect } from "./inputfields/multiselect";
 import { Modal, Button, Tag, Spin, Drawer, Input } from "antd";
 import { getCookie } from "cookies-next";
 import {
-  getAllServices,
-  type Service as APIService,
-} from "@/services/service.api";
+  getAllSchoolServices,
+  type SchoolService,
+} from "@/services/school-service.api";
 import { searchUserByContact, type User } from "@/services/user.api";
 import {
   CheckCircleOutlined,
@@ -28,10 +28,12 @@ import type { Customer } from "@/schema/booking";
 // Types for form data
 type FormService = {
   id: number;
+  schoolServiceId: number;
   name: string;
-  price: number;
+  licensePrice: number;
+  addonPrice: number;
   serviceType: string;
-  description: string;
+  description?: string;
   duration: number;
 };
 
@@ -40,6 +42,7 @@ type ServiceBookingFormData = {
   customerName: string;
   customerEmail: string;
   serviceId: number;
+  schoolServiceId: number;
   serviceName: string;
   servicePrice: number;
   selectedService?: FormService;
@@ -65,28 +68,36 @@ const ServiceBookingForm = () => {
   // Get school ID from cookie
   const schoolId: number = parseInt(getCookie("school")?.toString() || "0");
 
-  // Fetch services for the school
+  // Fetch services for the school from schoolService table
   const { data: servicesResponse, isLoading: loadingServices } = useQuery({
-    queryKey: ["services", schoolId],
+    queryKey: ["schoolServices", schoolId],
     queryFn: () =>
-      getAllServices({
-        schoolId: schoolId,
-        status: "ACTIVE",
-        serviceType: "LICENSE",
+      getAllSchoolServices({
+        whereSearchInput: {
+          schoolId: schoolId,
+          status: "ACTIVE",
+        },
       }),
     enabled: schoolId > 0,
   });
 
   const services: FormService[] =
-    servicesResponse?.data?.getAllService
-      ?.filter((service: APIService) => service.serviceType === "LICENSE")
-      .map((service: APIService) => ({
-        id: service.id,
-        name: service.serviceName,
-        price: service.price,
-        serviceType: service.serviceType,
-        description: service.description,
-        duration: service.duration,
+    servicesResponse?.data?.getAllSchoolService
+      ?.filter(
+        (ss: SchoolService) =>
+          ss.service &&
+          (ss.service.category === "NEW_LICENSE" ||
+            ss.service.category === "I_HOLD_LICENSE")
+      ) // Only license-related services
+      ?.map((schoolService: SchoolService) => ({
+        id: schoolService.service!.id,
+        schoolServiceId: schoolService.id,
+        name: schoolService.service!.serviceName,
+        licensePrice: schoolService.licensePrice,
+        addonPrice: schoolService.addonPrice,
+        serviceType: schoolService.service!.category,
+        description: schoolService.service!.description,
+        duration: schoolService.service!.duration,
       })) || [];
 
   const methods = useForm<ServiceBookingFormData>({
@@ -96,6 +107,7 @@ const ServiceBookingForm = () => {
       customerName: "",
       customerEmail: "",
       serviceId: 0,
+      schoolServiceId: 0,
       serviceName: "",
       servicePrice: 0,
       totalAmount: 0,
@@ -105,15 +117,37 @@ const ServiceBookingForm = () => {
 
   const { watch, setValue } = methods;
   const formValues = watch();
+  const watchedServiceId = watch("serviceId");
 
   // Watch for service selection changes
   useEffect(() => {
-    const serviceId = formValues.serviceId;
-    if (serviceId && serviceId !== 0 && services.length > 0) {
-      handleServiceChange(serviceId);
+    if (watchedServiceId && watchedServiceId !== 0 && services.length > 0) {
+      const numericServiceId =
+        typeof watchedServiceId === "string"
+          ? parseInt(watchedServiceId)
+          : watchedServiceId;
+
+      if (!selectedService || selectedService.id !== numericServiceId) {
+        const service = services.find((s) => s.id === numericServiceId);
+        if (service) {
+          setSelectedService(service);
+          setValue("schoolServiceId", service.schoolServiceId, {
+            shouldValidate: false,
+          });
+          setValue("serviceName", service.name, { shouldValidate: false });
+          setValue("servicePrice", service.licensePrice, {
+            shouldValidate: false,
+          });
+          setValue("totalAmount", service.licensePrice, {
+            shouldValidate: false,
+          });
+        }
+      }
+    } else if (watchedServiceId === 0 && selectedService) {
+      setSelectedService(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formValues.serviceId, services]);
+  }, [watchedServiceId]);
 
   // Mutation for fetching customer details
   const { mutate: fetchCustomer, isPending: loadingCustomer } = useMutation({
@@ -144,6 +178,7 @@ const ServiceBookingForm = () => {
         setValue("customerName", user.name);
         setValue("customerEmail", user.email || "");
         toast.success("Customer details loaded successfully!");
+        router.back();
       } else {
         setCustomerData(null);
         setValue("customerName", "");
@@ -256,19 +291,6 @@ const ServiceBookingForm = () => {
     );
   };
 
-  // Handle service selection
-  const handleServiceChange = (serviceId: number) => {
-    const service = services.find((s) => s.id === serviceId);
-    if (service) {
-      setSelectedService(service);
-      setValue("serviceId", service.id);
-      setValue("serviceName", service.name);
-      setValue("servicePrice", service.price);
-      setValue("selectedService", service);
-      setValue("totalAmount", service.price);
-    }
-  };
-
   // Calculate progress
   const calculateProgress = (): number => {
     let completed = 0;
@@ -284,6 +306,7 @@ const ServiceBookingForm = () => {
 
   // Validate form
   const validateForm = (): { isValid: boolean; errors: string[] } => {
+    console.log("Validating form with values:", formValues);
     const errors: string[] = [];
 
     if (!formValues.customerMobile || formValues.customerMobile.length !== 10) {
@@ -334,7 +357,7 @@ const ServiceBookingForm = () => {
         query: `mutation CreateBookingService($inputType: CreateBookingServiceInput!) {
           createBookingService(inputType: $inputType) {
             id
-            serviceId
+            schoolServiceId
             schoolId
             userId
             confirmationNumber
@@ -344,9 +367,9 @@ const ServiceBookingForm = () => {
           inputType: {
             schoolId: schoolId,
             userId: customerData?.id,
-            serviceId: data.serviceId,
+            schoolServiceId: data.schoolServiceId, // Use schoolServiceId instead of serviceId
             serviceName: data.serviceName,
-            serviceType: data.selectedService?.serviceType || "LICENSE",
+            serviceType: "LICENSE", // Always LICENSE for this page
             price: data.servicePrice,
             description: data.selectedService?.description || "",
             confirmationNumber: confirmationNumber,
@@ -527,14 +550,14 @@ const ServiceBookingForm = () => {
                     placeholder={
                       loadingServices
                         ? "Loading services..."
-                        : "Choose a license service or add-on"
+                        : "Choose a license service"
                     }
                     required={true}
                     options={services.map((service) => ({
                       value: service.id.toString(),
-                      label: `${service.name} - ₹${service.price.toLocaleString(
-                        "en-IN"
-                      )}`,
+                      label: `${
+                        service.name
+                      } - ₹${service.licensePrice.toLocaleString("en-IN")}`,
                     }))}
                     disable={loadingServices}
                   />
@@ -549,8 +572,11 @@ const ServiceBookingForm = () => {
                             </p>
                             <Tag
                               color={
-                                selectedService.serviceType === "LICENSE"
+                                selectedService.serviceType === "NEW_LICENSE"
                                   ? "purple"
+                                  : selectedService.serviceType ===
+                                    "I_HOLD_LICENSE"
+                                  ? "blue"
                                   : "cyan"
                               }
                               className="mt-2"
@@ -559,9 +585,12 @@ const ServiceBookingForm = () => {
                             </Tag>
                           </div>
                           <div className="text-right">
-                            <p className="text-xs text-gray-500">Service Fee</p>
+                            <p className="text-xs text-gray-500">License Fee</p>
                             <p className="text-2xl font-bold text-blue-600">
-                              ₹{selectedService.price.toLocaleString("en-IN")}
+                              ₹
+                              {selectedService.licensePrice.toLocaleString(
+                                "en-IN"
+                              )}
                             </p>
                           </div>
                         </div>
@@ -653,7 +682,8 @@ const ServiceBookingForm = () => {
                           {selectedService.name}
                         </span>
                         <span className="font-bold text-blue-600">
-                          ₹{selectedService.price.toLocaleString("en-IN")}
+                          ₹
+                          {selectedService.licensePrice.toLocaleString("en-IN")}
                         </span>
                       </div>
                     </div>
@@ -771,8 +801,11 @@ const ServiceBookingForm = () => {
                         <Tag
                           color={
                             pendingData.selectedService.serviceType ===
-                            "LICENSE"
+                            "NEW_LICENSE"
                               ? "purple"
+                              : pendingData.selectedService.serviceType ===
+                                "I_HOLD_LICENSE"
+                              ? "blue"
                               : "cyan"
                           }
                         >

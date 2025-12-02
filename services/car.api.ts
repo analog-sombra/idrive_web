@@ -270,9 +270,9 @@ export const getCarById = async (id: number) => {
 export const createCar = async (inputType: {
   schoolId: number;
   carId: string;
-  carAdminId?: number;
-  carName?: string;
-  model?: string;
+  carAdminId: number;
+  carName: string;
+  model: string;
   registrationNumber: string;
   year: number;
   color: string;
@@ -293,6 +293,7 @@ export const createCar = async (inputType: {
   assignedDriverId?: number;
   status?: "AVAILABLE" | "IN_USE" | "MAINTENANCE" | "INACTIVE";
 }) => {
+  console.log("Creating car with input:", inputType);
   return ApiCall<CreateCarResponse>({
     query: CREATE_CAR,
     variables: { inputType },
@@ -328,7 +329,7 @@ export const updateCar = async (updateData: {
   const { id, ...updateType } = updateData;
   return ApiCall<UpdateCarResponse>({
     query: UPDATE_CAR,
-    variables: { id, updateType: { id, ...updateType } },
+    variables: { id, updateType: { ...updateType } },
   });
 };
 

@@ -34,10 +34,12 @@ export const BookingSchema = v.pipe(
     selectedServices: v.optional(v.array(
       v.object({
         id: v.number(),
+        schoolServiceId: v.number(),
         name: v.string(),
-        price: v.number(),
+        licensePrice: v.number(),
+        addonPrice: v.number(),
         serviceType: v.string(),
-        description: v.string(),
+        description: v.optional(v.string()),
       })
     )),
     totalAmount: v.number(),

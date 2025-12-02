@@ -156,26 +156,33 @@ const ServiceBookingViewPage = ({ params }: ServiceBookingViewPageProps) => {
           </Card>
         )}
 
-        {/* Service Details from Master */}
-        {bookingService.service && (
-          <Card title="Service Master Details" className="shadow-sm">
+        {/* School Service Details */}
+        {bookingService.schoolService && (
+          <Card title="School Service Details" className="shadow-sm">
             <Descriptions bordered column={{ xs: 1, sm: 2, md: 2 }}>
-              <Descriptions.Item label="Service Name">
-                {bookingService.service.serviceName}
+              <Descriptions.Item label="School Service ID">
+                {bookingService.schoolService.schoolServiceId}
               </Descriptions.Item>
-              <Descriptions.Item label="Type">
-                <Tag
-                  color={
-                    bookingService.service.serviceType === "LICENSE"
-                      ? "green"
-                      : "blue"
-                  }
-                >
-                  {bookingService.service.serviceType}
+              <Descriptions.Item label="Service Category">
+                <Tag color="purple">
+                  {bookingService.schoolService.service?.category || "N/A"}
                 </Tag>
               </Descriptions.Item>
-              <Descriptions.Item label="Category" span={2}>
-                {bookingService.service.category}
+              <Descriptions.Item label="Service Name">
+                {bookingService.schoolService.service?.serviceName || "N/A"}
+              </Descriptions.Item>
+              <Descriptions.Item label="Service Description">
+                {bookingService.schoolService.service?.description || "N/A"}
+              </Descriptions.Item>
+              <Descriptions.Item label="License Price">
+                <span className="font-semibold text-green-600">
+                  ₹{bookingService.schoolService.licensePrice.toFixed(2)}
+                </span>
+              </Descriptions.Item>
+              <Descriptions.Item label="Add-on Price">
+                <span className="font-semibold text-blue-600">
+                  ₹{bookingService.schoolService.addonPrice.toFixed(2)}
+                </span>
               </Descriptions.Item>
             </Descriptions>
           </Card>

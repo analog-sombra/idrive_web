@@ -22,6 +22,12 @@ import { getSchoolById } from "@/services/school.api";
 const { Sider, Content } = Layout;
 
 const baseMenuItems = [
+  // First Group
+  {
+    key: "group1",
+    label: "OVERVIEW",
+    type: "group",
+  },
   {
     key: "/mtadmin/dashboard",
     icon: <FluentMdl2ViewDashboard className="text-lg" />,
@@ -34,22 +40,40 @@ const baseMenuItems = [
     label: "Scheduler",
     requiresProfile: true,
   },
+  // Second Group
+  {
+    key: "group2",
+    label: "BOOKINGS",
+    type: "group",
+  },
   {
     key: "/mtadmin/booking",
     icon: <AntDesignPlusCircleOutlined className="text-lg" />,
-    label: "New Booking",
+    label: "Car Booking",
     requiresProfile: true,
+  },
+  {
+    key: "/mtadmin/servicebooking",
+    icon: <span className="text-lg">🎫</span>,
+    label: "Service Booking",
+    requiresProfile: true,
+  },
+  // Third Group
+  {
+    key: "group3",
+    label: "MANAGEMENT",
+    type: "group",
   },
   {
     key: "/mtadmin/bookinglist",
     icon: <IcBaselineCalendarMonth className="text-lg" />,
-    label: "Booking List",
+    label: "All Booking",
     requiresProfile: true,
   },
   {
     key: "/mtadmin/servicebookinglist",
     icon: <span className="text-lg">🎫</span>,
-    label: "Service Booking List",
+    label: "All Services",
     requiresProfile: true,
   },
   {
@@ -57,6 +81,12 @@ const baseMenuItems = [
     icon: <AntDesignEditOutlined className="text-lg" />,
     label: "Amendments",
     requiresProfile: true,
+  },
+  // Fourth Group
+  {
+    key: "group4",
+    label: "CONFIGURATION",
+    type: "group",
   },
   {
     key: "/mtadmin/user",
@@ -80,6 +110,12 @@ const baseMenuItems = [
     key: "/mtadmin/car",
     icon: <span className="text-lg">🚗</span>,
     label: "Cars",
+    requiresProfile: true,
+  },
+  {
+    key: "/mtadmin/schoolservice",
+    icon: <span className="text-lg">💰</span>,
+    label: "Services Master",
     requiresProfile: true,
   },
   {
@@ -143,22 +179,34 @@ export default function MtAdminLayout({
   }, []);
 
   // Create menu items with disabled state
-  const menuItems = baseMenuItems.map((item) => ({
-    key: item.key,
-    icon: item.icon,
-    label:
-      item.requiresProfile && !profileComplete ? (
-        <Tooltip
-          title="Complete your school profile to access this feature"
-          placement="right"
-        >
-          <span>{item.label}</span>
-        </Tooltip>
-      ) : (
-        item.label
-      ),
-    disabled: item.requiresProfile && !profileComplete,
-  }));
+  const menuItems = baseMenuItems.map((item) => {
+    // Handle group items (no profile check needed)
+    if (item.type === "group") {
+      return {
+        key: item.key,
+        label: item.label,
+        type: "group",
+      };
+    }
+
+    // Handle regular menu items
+    return {
+      key: item.key,
+      icon: item.icon,
+      label:
+        item.requiresProfile && !profileComplete ? (
+          <Tooltip
+            title="Complete your school profile to access this feature"
+            placement="right"
+          >
+            <span>{item.label}</span>
+          </Tooltip>
+        ) : (
+          item.label
+        ),
+      disabled: item.requiresProfile && !profileComplete,
+    };
+  });
 
   const handleMenuClick: MenuProps["onClick"] = (e) => {
     router.push(e.key);

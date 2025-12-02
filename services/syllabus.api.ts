@@ -188,7 +188,7 @@ export const updateSyllabus = async (updateData: {
   const { id, ...updateType } = updateData;
   return ApiCall<UpdateSyllabusResponse>({
     query: UPDATE_SYLLABUS,
-    variables: { id, updateType: { id, ...updateType } },
+    variables: { id, updateType: { ...updateType } },
   });
 };
 

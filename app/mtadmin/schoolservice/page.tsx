@@ -11,25 +11,29 @@ import {
 } from "@/components/icons";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { getPaginatedServices, type Service } from "@/services/service.api";
+import {
+  getPaginatedSchoolServices,
+  type SchoolService,
+} from "@/services/school-service.api";
 import { getCookie } from "cookies-next";
-import { description } from "valibot";
 
 const { Search } = Input;
 
-interface ServiceData {
+interface SchoolServiceData {
   key: string;
   id: number;
-  serviceId: string;
+  schoolServiceId: string;
   serviceName: string;
-  category: string;
-  duration: number; // in days for license validity
-  status: "active" | "inactive" | "upcoming" | "discontinued";
-  description: string;
+  serviceCategory: string;
+  duration: number;
+  licensePrice: number;
+  addonPrice: number;
+  status: string;
 }
 
-const ServiceManagementPage = () => {
+const SchoolServiceManagementPage = () => {
   const router = useRouter();
+  const schoolId: number = parseInt(getCookie("school")?.toString() || "0");
   const [searchText, setSearchText] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
@@ -45,119 +49,125 @@ const ServiceManagementPage = () => {
     return categoryLabels[category] || category;
   };
 
-  // Fetch services from API
+  // Fetch school services from API
   const {
     data: servicesResponse,
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ["services", currentPage, pageSize, filterStatus],
+    queryKey: [
+      "schoolServices",
+      schoolId,
+      currentPage,
+      pageSize,
+      searchText,
+      filterStatus,
+    ],
     queryFn: () =>
-      getPaginatedServices({
+      getPaginatedSchoolServices({
         searchPaginationInput: {
           skip: (currentPage - 1) * pageSize,
           take: pageSize,
-          search: searchText || undefined,
+          search: searchText,
         },
         whereSearchInput: {
-          status:
-            filterStatus === "all" ? undefined : filterStatus.toUpperCase(),
+          schoolId: schoolId,
+          status: filterStatus === "all" ? undefined : filterStatus,
         },
       }),
+    enabled: schoolId > 0,
   });
 
-  const services: ServiceData[] =
-    servicesResponse?.data?.getPaginatedService?.data
-      ?.filter((service: Service) => {
-        if (!searchText) return true;
-        const search = searchText.toLowerCase();
-        return (
-          service.serviceName.toLowerCase().includes(search) ||
-          service.serviceId.toLowerCase().includes(search) ||
-          service.description.toLowerCase().includes(search) ||
-          service.category.toLowerCase().includes(search)
-        );
-      })
-      ?.map((service: Service) => ({
+  const schoolServices: SchoolServiceData[] =
+    servicesResponse?.data?.getPaginatedSchoolService?.data?.map(
+      (service: SchoolService) => ({
         key: service.id.toString(),
         id: service.id,
-        serviceId: service.serviceId,
-        serviceName: service.serviceName,
-        category: service.category,
-        duration: service.duration,
-        status: service.status.toLowerCase() as "active" | "inactive" | "upcoming" | "discontinued",
-        description: service.description,
-      })) || [];
+        schoolServiceId: service.schoolServiceId,
+        serviceName: service.service?.serviceName || "",
+        serviceCategory: service.service?.category || "",
+        duration: service.service?.duration || 0,
+        licensePrice: service.licensePrice,
+        addonPrice: service.addonPrice,
+        status: service.status,
+      })
+    ) || [];
 
-  const totalServices = servicesResponse?.data?.getPaginatedService?.total || 0;
+  const totalServices =
+    servicesResponse?.data?.getPaginatedSchoolService?.total || 0;
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
-      active: "green",
-      inactive: "red",
-      upcoming: "blue",
-      discontinued: "default",
+      ACTIVE: "green",
+      INACTIVE: "red",
     };
     return colors[status] || "default";
   };
 
-  const getStatusText = (status: string) => {
-    const texts: Record<string, string> = {
-      active: "Active",
-      inactive: "Inactive",
-      upcoming: "Upcoming",
-      discontinued: "Discontinued",
-    };
-    return texts[status] || status;
-  };
-
-  const getTypeColor = (type: string) => {
-    return type === "license" ? "purple" : "cyan";
-  };
-
-  const getTypeText = (type: string) => {
-    return type === "license" ? "License Service" : "Add-on";
-  };
-
-  const columns: ColumnsType<ServiceData> = [
+  const columns: ColumnsType<SchoolServiceData> = [
     {
       title: "Service ID",
-      dataIndex: "serviceId",
-      key: "serviceId",
-      width: 120,
-      sorter: (a, b) => a.serviceId.localeCompare(b.serviceId),
+      dataIndex: "schoolServiceId",
+      key: "schoolServiceId",
+      width: 150,
+      sorter: (a, b) => a.schoolServiceId.localeCompare(b.schoolServiceId),
     },
     {
-      title: "Service Name",
-      key: "serviceName",
-      width: 220,
+      title: "Service Details",
+      key: "serviceDetails",
+      width: 280,
       render: (_, record) => (
-        <div>
-          <div className="font-semibold text-gray-900">
-            {record.serviceName}
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
+            {record.serviceName.charAt(0)}
           </div>
-          <div className="text-xs text-gray-500 mt-1">{formatCategory(record.category)}</div>
+          <div className="min-w-0">
+            <div className="font-semibold text-gray-900 truncate">
+              {record.serviceName}
+            </div>
+            <div className="text-xs text-gray-600">{formatCategory(record.serviceCategory)}</div>
+            <div className="text-xs text-gray-500">
+              Duration: {record.duration} days
+            </div>
+          </div>
         </div>
       ),
     },
     {
-      title: "Duration",
-      dataIndex: "duration",
-      key: "duration",
-      width: 120,
-      render: (days) => `${days} days`,
+      title: "License Price",
+      dataIndex: "licensePrice",
+      key: "licensePrice",
+      width: 150,
+      align: "right",
+      sorter: (a, b) => a.licensePrice - b.licensePrice,
+      render: (price) => (
+        <div className="font-semibold text-green-600">
+          ₹{price.toLocaleString("en-IN")}
+        </div>
+      ),
+    },
+    {
+      title: "Addon Price",
+      dataIndex: "addonPrice",
+      key: "addonPrice",
+      width: 150,
+      align: "right",
+      sorter: (a, b) => a.addonPrice - b.addonPrice,
+      render: (price) => (
+        <div className="font-semibold text-blue-600">
+          ₹{price.toLocaleString("en-IN")}
+        </div>
+      ),
     },
     {
       title: "Status",
       dataIndex: "status",
       key: "status",
-      width: 120,
+      width: 130,
       align: "center",
       filters: [
-        { text: "Active", value: "active" },
-        { text: "Inactive", value: "inactive" },
-        { text: "Upcoming", value: "upcoming" },
-        { text: "Discontinued", value: "discontinued" },
+        { text: "Active", value: "ACTIVE" },
+        { text: "Inactive", value: "INACTIVE" },
       ],
       onFilter: (value, record) => record.status === value,
       render: (status: string) => (
@@ -165,7 +175,7 @@ const ServiceManagementPage = () => {
           color={getStatusColor(status)}
           className="!text-sm !px-3 !py-1 !font-medium"
         >
-          {getStatusText(status)}
+          {status}
         </Tag>
       ),
     },
@@ -178,7 +188,9 @@ const ServiceManagementPage = () => {
         <Button
           type="primary"
           icon={<AntDesignEyeOutlined />}
-          onClick={() => router.push(`/admin/service/${record.id}`)}
+          onClick={() =>
+            router.push(`/mtadmin/schoolservice/${record.id}`)
+          }
           className="!bg-blue-600"
         >
           View Details
@@ -188,8 +200,9 @@ const ServiceManagementPage = () => {
   ];
 
   const stats = {
-    total: totalServices,
-    active: services.filter((s) => s.status === "active").length,
+    total: schoolServices.length,
+    active: schoolServices.filter((s) => s.status === "ACTIVE").length,
+    inactive: schoolServices.filter((s) => s.status === "INACTIVE").length,
   };
 
   return (
@@ -200,10 +213,10 @@ const ServiceManagementPage = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">
-                License Services & Add-ons
+                School Service Management
               </h1>
               <p className="text-gray-600 mt-1 text-sm">
-                Manage license services and additional offerings
+                Manage service pricing for your school
               </p>
             </div>
             <Space size="middle">
@@ -219,8 +232,8 @@ const ServiceManagementPage = () => {
                 type="primary"
                 icon={<AntDesignPlusCircleOutlined className="text-lg" />}
                 size="large"
-                onClick={() => router.push("/admin/service/add")}
-                className="!bg-gradient-to-r from-purple-600 to-pink-600"
+                onClick={() => router.push("/mtadmin/schoolservice/add")}
+                className="!bg-gradient-to-r from-blue-600 to-purple-600"
               >
                 Add New Service
               </Button>
@@ -231,11 +244,11 @@ const ServiceManagementPage = () => {
 
       <div className="px-8 py-6 space-y-6">
         {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="shadow-sm">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
-                <span className="text-purple-600 text-2xl">🎫</span>
+              <div className="w-12 h-12 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                <span className="text-blue-600 text-2xl">📋</span>
               </div>
               <div>
                 <p className="text-gray-600 text-xs mb-1">Total Services</p>
@@ -252,9 +265,23 @@ const ServiceManagementPage = () => {
                 <span className="text-green-600 text-2xl">✓</span>
               </div>
               <div>
-                <p className="text-gray-600 text-xs mb-1">Active Services</p>
+                <p className="text-gray-600 text-xs mb-1">Active</p>
                 <p className="text-2xl font-bold text-gray-900">
                   {stats.active}
+                </p>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="shadow-sm">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
+                <span className="text-red-600 text-2xl">✕</span>
+              </div>
+              <div>
+                <p className="text-gray-600 text-xs mb-1">Inactive</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {stats.inactive}
                 </p>
               </div>
             </div>
@@ -266,7 +293,7 @@ const ServiceManagementPage = () => {
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div className="flex-1 max-w-md">
               <Search
-                placeholder="Search by service name, ID, or description..."
+                placeholder="Search by service name or ID..."
                 allowClear
                 size="large"
                 prefix={<FluentMdl2Search className="text-gray-400" />}
@@ -288,10 +315,8 @@ const ServiceManagementPage = () => {
                 size="large"
                 options={[
                   { label: "All Status", value: "all" },
-                  { label: "Active", value: "active" },
-                  { label: "Inactive", value: "inactive" },
-                  { label: "Upcoming", value: "upcoming" },
-                  { label: "Discontinued", value: "discontinued" },
+                  { label: "Active", value: "ACTIVE" },
+                  { label: "Inactive", value: "INACTIVE" },
                 ]}
               />
             </Space>
@@ -302,7 +327,7 @@ const ServiceManagementPage = () => {
         <Card className="shadow-sm">
           <Table
             columns={columns}
-            dataSource={services}
+            dataSource={schoolServices}
             loading={isLoading}
             pagination={{
               current: currentPage,
@@ -313,7 +338,7 @@ const ServiceManagementPage = () => {
                 `${range[0]}-${range[1]} of ${total} services`,
               showSizeChanger: false,
             }}
-            scroll={{ x: 1400 }}
+            scroll={{ x: 1200 }}
             size="middle"
           />
         </Card>
@@ -322,4 +347,4 @@ const ServiceManagementPage = () => {
   );
 };
 
-export default ServiceManagementPage;
+export default SchoolServiceManagementPage;

@@ -8,7 +8,6 @@ import {
   Input,
   DatePicker,
   Spin,
-  message,
   Avatar,
 } from "antd";
 import {
@@ -23,6 +22,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getUserById, updateUser, type User } from "@/services/user.api";
 import { getCookie } from "cookies-next";
 import dayjs from "dayjs";
+import { toast } from "react-toastify";
 
 const { TextArea } = Input;
 
@@ -67,12 +67,12 @@ const EditProfilePage = () => {
       });
     },
     onSuccess: () => {
-      message.success("Profile updated successfully!");
+      toast.success("Profile updated successfully!");
       queryClient.invalidateQueries({ queryKey: ["user", userId] });
       router.push("/customer/profile");
     },
     onError: (error: Error) => {
-      message.error(error.message || "Failed to update profile");
+      toast.error(error.message || "Failed to update profile");
     },
   });
 

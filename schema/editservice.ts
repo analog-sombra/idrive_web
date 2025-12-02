@@ -1,9 +1,11 @@
 import * as v from "valibot";
 
 export const ServiceCategoryEnum = v.picklist(['NEW_LICENSE', 'I_HOLD_LICENSE', 'TRANSPORT', 'IDP']);
+export const ServiceStatusEnum = v.picklist(['ACTIVE', 'INACTIVE', 'UPCOMING', 'DISCONTINUED']);
 
-export const AddServiceSchema = v.object({
+export const EditServiceSchema = v.object({
   // Basic Information
+  serviceId: v.string(),
   serviceName: v.pipe(
     v.string(),
     v.minLength(3, "Service name must be at least 3 characters")
@@ -16,6 +18,7 @@ export const AddServiceSchema = v.object({
     v.string(),
     v.regex(/^[0-9]+$/, "Duration must be a number")
   ),
+  status: ServiceStatusEnum,
 
   // Service Details
   description: v.pipe(
@@ -28,4 +31,4 @@ export const AddServiceSchema = v.object({
   termsAndConditions: v.optional(v.string()),
 });
 
-export type AddServiceForm = v.InferOutput<typeof AddServiceSchema>;
+export type EditServiceForm = v.InferOutput<typeof EditServiceSchema>;

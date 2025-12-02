@@ -4,11 +4,11 @@ import { ApiCall } from "./api";
 export interface BookingService {
   id: number;
   bookingId?: number;
-  serviceId: number;
+  schoolServiceId: number;
   schoolId: number;
   userId: number;
   serviceName: string;
-  serviceType: string;
+  serviceType: "LICENSE" | "ADDON";
   price: number;
   description?: string;
   confirmationNumber?: string;
@@ -22,11 +22,17 @@ export interface BookingService {
     customerMobile: string;
     customerEmail?: string;
   };
-  service?: {
+  schoolService?: {
     id: number;
-    serviceName: string;
-    serviceType: string;
-    category: string;
+    schoolServiceId: string;
+    licensePrice: number;
+    addonPrice: number;
+    service?: {
+      id: number;
+      serviceName: string;
+      category: string;
+      description?: string;
+    };
   };
   user?: {
     id: number;
@@ -64,7 +70,7 @@ const GET_PAGINATED_BOOKING_SERVICES = `
       data {
         id
         bookingId
-        serviceId
+        schoolServiceId
         schoolId
         userId
         serviceName
@@ -82,11 +88,17 @@ const GET_PAGINATED_BOOKING_SERVICES = `
           customerMobile
           customerEmail
         }
-        service {
+        schoolService {
           id
-          serviceName
-          serviceType
-          category
+          schoolServiceId
+          licensePrice
+          addonPrice
+          service {
+            id
+            serviceName
+            category
+            description
+          }
         }
         user {
           id
@@ -111,7 +123,7 @@ const GET_ALL_BOOKING_SERVICES = `
     getAllBookingService(whereSearchInput: $whereSearchInput) {
       id
       bookingId
-      serviceId
+      schoolServiceId
       schoolId
       userId
       serviceName
@@ -129,11 +141,17 @@ const GET_ALL_BOOKING_SERVICES = `
         customerMobile
         customerEmail
       }
-      service {
+      schoolService {
         id
-        serviceName
-        serviceType
-        category
+        schoolServiceId
+        licensePrice
+        addonPrice
+        service {
+          id
+          serviceName
+          category
+          description
+        }
       }
       user {
         id
@@ -154,7 +172,7 @@ const GET_BOOKING_SERVICE_BY_ID = `
     getBookingServiceById(id: $id) {
       id
       bookingId
-      serviceId
+      schoolServiceId
       schoolId
       userId
       serviceName
@@ -172,11 +190,17 @@ const GET_BOOKING_SERVICE_BY_ID = `
         customerMobile
         customerEmail
       }
-      service {
+      schoolService {
         id
-        serviceName
-        serviceType
-        category
+        schoolServiceId
+        licensePrice
+        addonPrice
+        service {
+          id
+          serviceName
+          category
+          description
+        }
       }
       user {
         id
@@ -202,7 +226,7 @@ export const getPaginatedBookingServices = async (variables: {
   whereSearchInput: {
     schoolId?: number;
     userId?: number;
-    serviceId?: number;
+    schoolServiceId?: number;
     bookingId?: number;
     serviceType?: string;
     confirmationNumber?: string;
@@ -217,7 +241,7 @@ export const getPaginatedBookingServices = async (variables: {
 export const getAllBookingServices = async (whereSearchInput: {
   schoolId?: number;
   userId?: number;
-  serviceId?: number;
+  schoolServiceId?: number;
   bookingId?: number;
   serviceType?: string;
   confirmationNumber?: string;

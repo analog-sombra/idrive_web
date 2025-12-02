@@ -4,9 +4,13 @@ import { ApiCall } from "./api";
 export interface User {
   id: number;
   name: string;
+  surname?: string;
+  fatherName?: string;
   contact1: string;
   contact2?: string;
   address?: string;
+  permanentAddress?: string;
+  bloodGroup?: string;
   role: "ADMIN" | "INSTRUCTOR" | "STUDENT" | "DRIVER" | "MTADMIN";
   email?: string;
   password?: string;
@@ -59,9 +63,13 @@ const GET_PAGINATED_USERS = `
       data {
         id
         name
+        surname
+        fatherName
         contact1
         contact2
         address
+        permanentAddress
+        bloodGroup
         role
         email
         dob
@@ -98,9 +106,13 @@ const GET_USER_BY_ID = `
     getUserById(id: $id) {
       id
       name
+      surname
+      fatherName
       contact1
       contact2
       address
+      permanentAddress
+      bloodGroup
       role
       email
       dob
@@ -118,9 +130,13 @@ const SEARCH_USER = `
     searchUser(whereSearchInput: $whereSearchInput) {
       id
       name
+      surname
+      fatherName
       contact1
       contact2
       address
+      permanentAddress
+      bloodGroup
       role
       email
       dob
@@ -151,9 +167,13 @@ const UPDATE_USER = `
     updateUser(id: $id, updateType: $updateType) {
       id
       name
+      surname
+      fatherName
       contact1
       contact2
       address
+      permanentAddress
+      bloodGroup
       role
       email
       dob
@@ -208,6 +228,7 @@ export const getPaginatedUsers = async (variables: {
 };
 
 export const getUserById = async (id: number) => {
+  console.log("Fetching user with ID:", id);
   return ApiCall<SingleUser>({
     query: GET_USER_BY_ID,
     variables: { id },
@@ -237,9 +258,13 @@ export const searchUserByContact = async (contact: string, role?: string) => {
 
 export const createUser = async (inputType: {
   name: string;
+  surname?: string;
+  fatherName?: string;
   contact1: string;
   contact2?: string;
   address?: string;
+  permanentAddress?: string;
+  bloodGroup?: string;
   role: "ADMIN" | "INSTRUCTOR" | "STUDENT" | "DRIVER" | "MTADMIN";
   email?: string;
   password?: string;
@@ -257,9 +282,13 @@ export const createUser = async (inputType: {
 export const updateUser = async (updateData: {
   id: number;
   name?: string;
+  surname?: string;
+  fatherName?: string;
   contact1?: string;
   contact2?: string;
   address?: string;
+  permanentAddress?: string;
+  bloodGroup?: string;
   role?: "ADMIN" | "INSTRUCTOR" | "STUDENT" | "DRIVER" | "MTADMIN";
   email?: string;
   password?: string;
@@ -270,9 +299,10 @@ export const updateUser = async (updateData: {
   updatedById?: number;
 }) => {
   const { id, ...updateType } = updateData;
+  console.log("Updating user with ID:", id, "Data:", updateType);
   return ApiCall<UpdateUserResponse>({
     query: UPDATE_USER,
-    variables: { id, updateType: { id, ...updateType } },
+    variables: { id, updateType: { ...updateType } },
   });
 };
 

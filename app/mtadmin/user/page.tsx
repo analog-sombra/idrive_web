@@ -16,6 +16,7 @@ import { getPaginatedUsers } from "@/services/user.api";
 const { Search } = Input;
 
 interface UserData {
+  id: number;
   key: string;
   userId: string;
   name: string;
@@ -58,7 +59,7 @@ function UserManagementPage() {
   });
 
   interface BackendUser {
-    id: number | string;
+    id: number;
     name: string;
     email?: string;
     contact1: string;
@@ -69,6 +70,7 @@ function UserManagementPage() {
   const users: UserData[] = (
     usersResponse?.data?.getPaginatedUser?.data || []
   ).map((u: BackendUser) => ({
+    id: u.id,
     key: u.id.toString(),
     userId: `USR-${u.id.toString().padStart(3, "0")}`,
     name: u.name,
@@ -131,7 +133,7 @@ function UserManagementPage() {
         <Button
           type="primary"
           icon={<AntDesignEyeOutlined />}
-          onClick={() => router.push(`/mtadmin/user/${record.userId}`)}
+          onClick={() => router.push(`/mtadmin/user/${record.id}`)}
           className="!bg-blue-600"
         >
           View Profile
@@ -139,10 +141,6 @@ function UserManagementPage() {
       ),
     },
   ];
-
-  const stats = {
-    total: totalUsers,
-  };
 
   return (
     <div className="min-h-screen bg-gray-50">

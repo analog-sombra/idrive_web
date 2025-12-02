@@ -410,7 +410,7 @@ export const updateDriver = async (updateData: {
   const { id, ...updateType } = updateData;
   return ApiCall<UpdateDriverResponse>({
     query: UPDATE_DRIVER,
-    variables: { id, updateType: { id, ...updateType } },
+    variables: { id, updateType: { ...updateType } },
   });
 };
 

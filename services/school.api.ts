@@ -365,7 +365,7 @@ export const updateSchool = async (updateData: {
   const { id, ...updateType } = updateData;
   return ApiCall<UpdateSchoolResponse>({
     query: UPDATE_SCHOOL,
-    variables: { id, updateType: { id, ...updateType } },
+    variables: { id, updateType: { ...updateType } },
   });
 };
 

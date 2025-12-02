@@ -45,6 +45,16 @@ const ServiceDetailPage = ({
     (typeof serviceData.includedServices === 'string' ? 
       JSON.parse(serviceData.includedServices) : serviceData.includedServices) : [];
 
+  const formatCategory = (category: string) => {
+    const categoryLabels: Record<string, string> = {
+      NEW_LICENSE: "New License",
+      I_HOLD_LICENSE: "I Hold License",
+      TRANSPORT: "Transport",
+      IDP: "IDP",
+    };
+    return categoryLabels[category] || category;
+  };
+
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
       ACTIVE: "green",
@@ -138,7 +148,7 @@ const ServiceDetailPage = ({
               {serviceData.serviceName}
             </Descriptions.Item>
             <Descriptions.Item label="Category">
-              {serviceData.category}
+              {formatCategory(serviceData.category)}
             </Descriptions.Item>
             <Descriptions.Item label="Duration">
               {serviceData.duration} days

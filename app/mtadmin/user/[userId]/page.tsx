@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, use } from "react";
 import {
   Card,
   Button,
@@ -12,6 +12,7 @@ import {
   InputNumber,
   Avatar,
   Descriptions,
+  Spin,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import {
@@ -22,9 +23,12 @@ import {
   MaterialSymbolsFreeCancellation,
   Fa6RegularClock,
   IcBaselineCalendarMonth,
+  AntDesignEditOutlined,
 } from "@/components/icons";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
+import { useQuery } from "@tanstack/react-query";
+import { getUserById } from "@/services/user.api";
 
 const { TextArea } = Input;
 
@@ -49,27 +53,55 @@ interface WalletTransaction {
   balance: number;
 }
 
-const UserDetailPage = ({ params }: { params: { userId: string } }) => {
+const UserDetailPage = ({ params }: { params: Promise<{ userId: string }> }) => {
   const router = useRouter();
   const [refundModalVisible, setRefundModalVisible] = useState(false);
   const [form] = Form.useForm();
 
-  // Mock user data
-  const userData = {
-    userId: params.userId,
-    name: "Rajesh Kumar",
-    email: "rajesh.kumar@email.com",
-    mobile: "9876543210",
-    address: "House No. 123, Sector 15, Rohini, New Delhi - 110085",
-    walletBalance: 5000,
-    totalSpent: 45000,
-    joinedDate: "2024-01-15",
-    status: "active",
-    totalBookings: 15,
-    completedBookings: 12,
-    cancelledBookings: 2,
-    pendingBookings: 1,
-  };
+  // Unwrap params (Next.js 15+ async params)
+  const { userId } = use(params);
+
+  // Parse the numeric user ID from the URL parameter
+  const numericUserId = parseInt(userId);
+
+  // Fetch user data from database
+  const {
+    data: userResponse,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["user-detail", numericUserId],
+    queryFn: () => getUserById(numericUserId),
+    enabled: !isNaN(numericUserId),
+  });
+
+  const user = userResponse?.data?.getUserById;
+
+  // Mock user data structure for dashboard stats (to be replaced with real data later)
+  const userData = user
+    ? {
+        userId: `USR-${user.id.toString().padStart(3, "0")}`,
+        id: user.id,
+        name: user.name,
+        surname: user.surname || "",
+        fatherName: user.fatherName || "",
+        email: user.email || "N/A",
+        mobile: user.contact1,
+        contact2: user.contact2 || "",
+        address: user.address || "N/A",
+        permanentAddress: user.permanentAddress || "",
+        bloodGroup: user.bloodGroup || "N/A",
+        dob: user.dob || null,
+        walletBalance: 5000, // TODO: Replace with real wallet balance
+        totalSpent: 45000, // TODO: Replace with real data
+        joinedDate: user.createdAt,
+        status: user.status.toLowerCase(),
+        totalBookings: 15, // TODO: Replace with real booking count
+        completedBookings: 12, // TODO: Replace with real data
+        cancelledBookings: 2, // TODO: Replace with real data
+        pendingBookings: 1, // TODO: Replace with real data
+      }
+    : null;
 
   // Mock active services
   const [activeServices] = useState<ServiceData[]>([
@@ -320,24 +352,61 @@ const UserDetailPage = ({ params }: { params: { userId: string } }) => {
 
   const handleRefund = (values: { amount: number; reason: string }) => {
     toast.success(
-      `₹${values.amount} has been refunded to ${userData.name}'s wallet`
+      `₹${values.amount} has been refunded to ${userData?.name}'s wallet`
     );
     setRefundModalVisible(false);
     form.resetFields();
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Spin size="large" />
+      </div>
+    );
+  }
+
+  if (error || !userData) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Card className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">
+            User Not Found
+          </h2>
+          <p className="text-gray-600 mb-4">
+            The user you are looking for does not exist.
+          </p>
+          <Button
+            type="primary"
+            onClick={() => router.push("/mtadmin/user")}
+          >
+            Back to Users
+          </Button>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b border-gray-200">
         <div className="px-8 py-6">
-          <div className="flex items-center gap-4 mb-4">
+          <div className="flex items-center justify-between gap-4 mb-4">
             <Button
               icon={<IcBaselineArrowBack className="text-lg" />}
               onClick={() => router.push("/mtadmin/user")}
               size="large"
             >
               Back to Users
+            </Button>
+            <Button
+              type="primary"
+              icon={<AntDesignEditOutlined className="text-lg" />}
+              onClick={() => router.push(`/mtadmin/user/${userId}/edit`)}
+              size="large"
+            >
+              Edit User
             </Button>
           </div>
           <div className="flex items-start justify-between">
@@ -385,7 +454,6 @@ const UserDetailPage = ({ params }: { params: { userId: string } }) => {
               </div>
             </div>
           </Card>
-          <div className="mt-2"></div>
 
           <Card className="shadow-sm">
             <div className="flex items-center gap-4">
@@ -438,17 +506,40 @@ const UserDetailPage = ({ params }: { params: { userId: string } }) => {
         >
           <Descriptions column={{ xs: 1, sm: 2, md: 3 }}>
             <Descriptions.Item label="Full Name">
-              {userData.name}
+              {userData.name} {userData.surname}
+            </Descriptions.Item>
+            <Descriptions.Item label="Father's Name">
+              {userData.fatherName || "N/A"}
             </Descriptions.Item>
             <Descriptions.Item label="Email">
               {userData.email}
             </Descriptions.Item>
-            <Descriptions.Item label="Mobile">
+            <Descriptions.Item label="Primary Mobile">
               {userData.mobile}
             </Descriptions.Item>
-            <Descriptions.Item label="Address" span={3}>
+            <Descriptions.Item label="Secondary Mobile">
+              {userData.contact2 || "N/A"}
+            </Descriptions.Item>
+            <Descriptions.Item label="Blood Group">
+              {userData.bloodGroup}
+            </Descriptions.Item>
+            {userData.dob && (
+              <Descriptions.Item label="Date of Birth">
+                {new Date(userData.dob).toLocaleDateString("en-IN", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </Descriptions.Item>
+            )}
+            <Descriptions.Item label="Current Address" span={3}>
               {userData.address}
             </Descriptions.Item>
+            {userData.permanentAddress && (
+              <Descriptions.Item label="Permanent Address" span={3}>
+                {userData.permanentAddress}
+              </Descriptions.Item>
+            )}
             <Descriptions.Item label="Joined Date">
               {new Date(userData.joinedDate).toLocaleDateString("en-IN", {
                 year: "numeric",

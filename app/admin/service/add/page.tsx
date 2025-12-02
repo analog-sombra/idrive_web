@@ -150,10 +150,10 @@ const AddServicePage = () => {
                       placeholder="Select category"
                       required={true}
                       options={[
-                        { label: "Two Wheeler", value: "Two Wheeler" },
-                        { label: "Four Wheeler", value: "Four Wheeler" },
-                        { label: "Heavy Vehicle", value: "Heavy Vehicle" },
-                        { label: "Commercial Vehicle", value: "Commercial Vehicle" },
+                        { label: "New License", value: "NEW_LICENSE" },
+                        { label: "I Hold License", value: "I_HOLD_LICENSE" },
+                        { label: "Transport", value: "TRANSPORT" },
+                        { label: "IDP", value: "IDP" },
                       ]}
                     />
                   </div>

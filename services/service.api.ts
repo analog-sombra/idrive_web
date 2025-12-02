@@ -1,11 +1,13 @@
 import { ApiCall } from './api';
 
 // Types
+export type ServiceCategory = 'NEW_LICENSE' | 'I_HOLD_LICENSE' | 'TRANSPORT' | 'IDP';
+
 export interface Service {
   id: number;
   serviceId: string;
   serviceName: string;
-  category: string;
+  category: ServiceCategory;
   duration: number; // in days
   description: string;
   features?: string;

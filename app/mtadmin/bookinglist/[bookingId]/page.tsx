@@ -312,6 +312,87 @@ const BookingDetailsPage = () => {
       </Card>
       <div className="mt-4"></div>
 
+      {/* Booking Services Section */}
+      {booking.bookingServices && booking.bookingServices.length > 0 && (
+        <>
+          <Card className="shadow-sm mb-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-2">
+              Additional Services
+            </h2>
+            <Table
+              columns={[
+                {
+                  title: "Service Name",
+                  dataIndex: "serviceName",
+                  key: "serviceName",
+                  width: 200,
+                },
+                {
+                  title: "Type",
+                  dataIndex: "serviceType",
+                  key: "serviceType",
+                  width: 120,
+                  render: (type) => (
+                    <Tag color={type === "LICENSE" ? "purple" : "cyan"}>
+                      {type}
+                    </Tag>
+                  ),
+                },
+                {
+                  title: "Category",
+                  key: "category",
+                  width: 150,
+                  render: (_, record) => (
+                    <Tag
+                      color={
+                        record.schoolService?.service?.category ===
+                        "NEW_LICENSE"
+                          ? "purple"
+                          : record.schoolService?.service?.category ===
+                            "I_HOLD_LICENSE"
+                          ? "blue"
+                          : "cyan"
+                      }
+                    >
+                      {record.schoolService?.service?.category || "-"}
+                    </Tag>
+                  ),
+                },
+                {
+                  title: "Price",
+                  dataIndex: "price",
+                  key: "price",
+                  width: 120,
+                  render: (price) => `₹${price.toLocaleString("en-IN")}`,
+                },
+                {
+                  title: "Description",
+                  dataIndex: "description",
+                  key: "description",
+                  ellipsis: true,
+                  render: (desc) => desc || "-",
+                },
+                {
+                  title: "Confirmation #",
+                  dataIndex: "confirmationNumber",
+                  key: "confirmationNumber",
+                  width: 150,
+                  render: (num) => num || "-",
+                },
+              ]}
+              dataSource={booking.bookingServices}
+              pagination={false}
+              rowKey="id"
+              size="small"
+              locale={{
+                emptyText: "No additional services booked",
+              }}
+            />
+          </Card>
+          <div className="mt-4"></div>
+        </>
+      )}
+
       <Card className="shadow-sm mb-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold text-gray-900">Payment History</h2>

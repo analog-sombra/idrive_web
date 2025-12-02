@@ -1,10 +1,16 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect } from "react";
 import { FormProvider, useForm } from "react-hook-form";
+import { valibotResolver } from "@hookform/resolvers/valibot";
+import { onFormError } from "@/utils/methods";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 import { Button, Card, Modal, Spin } from "antd";
+import { EditServiceForm, EditServiceSchema } from "@/schema/editservice";
+import { TextInput } from "@/components/form/inputfields/textinput";
+import { MultiSelect } from "@/components/form/inputfields/multiselect";
+import { TaxtAreaInput } from "@/components/form/inputfields/textareainput";
 import { ChipInput } from "@/components/form/inputfields/chipinput";
 import {
   Fa6SolidArrowLeftLong,
@@ -12,20 +18,6 @@ import {
 } from "@/components/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getServiceById, updateService } from "@/services/service.api";
-
-// Temporary form interface - will be replaced with schema
-interface EditServiceForm {
-  serviceId: string;
-  serviceName: string;
-  category: string;
-  duration: string;
-  description: string;
-  features: string[];
-  requirements: string;
-  termsAndConditions: string;
-  includedServices: string[];
-  status: string;
-}
 
 const EditServicePage = ({
   params,
@@ -35,10 +27,11 @@ const EditServicePage = ({
   const router = useRouter();
   const { serviceId: serviceIdStr } = use(params);
   const serviceId = parseInt(serviceIdStr);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const queryClient = useQueryClient();
 
-  const methods = useForm<EditServiceForm>();
+  const methods = useForm<EditServiceForm>({
+    resolver: valibotResolver(EditServiceSchema),
+  });
 
   // Fetch service data from API
   const {
@@ -73,13 +66,11 @@ const EditServicePage = ({
         ),
         onOk: () => router.push(`/admin/service/${serviceId}`),
       });
-      setIsSubmitting(false);
     },
     onError: (error: Error) => {
       toast.error(
         error?.message || "Failed to update service. Please try again."
       );
-      setIsSubmitting(false);
     },
   });
 
@@ -122,6 +113,9 @@ const EditServicePage = ({
             <strong>Service Name:</strong> {data.serviceName}
           </p>
           <p>
+            <strong>Category:</strong> {data.category}
+          </p>
+          <p>
             <strong>Status:</strong> {data.status}
           </p>
           <br />
@@ -131,36 +125,12 @@ const EditServicePage = ({
       okText: "Yes, Update Service",
       cancelText: "Cancel",
       onOk: () => {
-        setIsSubmitting(true);
-
         // Filter out empty strings and ensure proper array format
         const cleanFeatures =
           data.features?.filter((f) => f && f.trim() !== "") || [];
         const cleanIncludedServices =
           data.includedServices?.filter((s) => s && s.trim() !== "") || [];
 
-        console.log({
-          id: serviceId,
-          serviceName: data.serviceName,
-          category: data.category,
-          duration: parseInt(data.duration),
-          description: data.description,
-          features:
-            cleanFeatures.length > 0
-              ? JSON.stringify(cleanFeatures)
-              : undefined,
-          includedServices:
-            cleanIncludedServices.length > 0
-              ? JSON.stringify(cleanIncludedServices)
-              : undefined,
-          requirements: data.requirements,
-          termsAndConditions: data.termsAndConditions,
-          status: data.status as
-            | "ACTIVE"
-            | "INACTIVE"
-            | "UPCOMING"
-            | "DISCONTINUED",
-        });
         updateServiceMutation.mutate({
           id: serviceId,
           serviceName: data.serviceName,
@@ -183,7 +153,6 @@ const EditServicePage = ({
             | "UPCOMING"
             | "DISCONTINUED",
         });
-        setIsSubmitting(false);
       },
       okButtonProps: {
         className: "!bg-blue-600",
@@ -288,76 +257,65 @@ const EditServicePage = ({
       <div className="px-8 py-6 max-w-5xl">
         <Card className="shadow-sm">
           <FormProvider {...methods}>
-            <form onSubmit={methods.handleSubmit(onSubmit)}>
+            <form onSubmit={methods.handleSubmit(onSubmit, onFormError)}>
               {/* Basic Information */}
               <div className="mb-8">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b">
                   Basic Information
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Service ID{" "}
-                      <span className="text-gray-500">(Auto-generated)</span>
-                    </label>
-                    <input
-                      {...methods.register("serviceId")}
-                      type="text"
-                      disabled
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100"
+                    <TextInput<EditServiceForm>
+                      name="serviceId"
+                      title="Service ID"
+                      placeholder="Auto-generated"
+                      required={false}
+                      disable
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Service Name <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      {...methods.register("serviceName", { required: true })}
-                      type="text"
+                    <TextInput<EditServiceForm>
+                      name="serviceName"
+                      title="Service Name"
                       placeholder="Enter service name"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Status <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      {...methods.register("status", { required: true })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    >
-                      <option value="ACTIVE">Active</option>
-                      <option value="INACTIVE">Inactive</option>
-                      <option value="UPCOMING">Upcoming</option>
-                      <option value="DISCONTINUED">Discontinued</option>
-                    </select>
+                    <MultiSelect<EditServiceForm>
+                      name="category"
+                      title="Category"
+                      placeholder="Select category"
+                      required={true}
+                      options={[
+                        { label: "New License", value: "NEW_LICENSE" },
+                        { label: "I Hold License", value: "I_HOLD_LICENSE" },
+                        { label: "Transport", value: "TRANSPORT" },
+                        { label: "IDP", value: "IDP" },
+                      ]}
+                    />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Category <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      {...methods.register("category", { required: true })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    >
-                      <option value="">Select category</option>
-                      <option value="Two Wheeler">Two Wheeler</option>
-                      <option value="Four Wheeler">Four Wheeler</option>
-                      <option value="Heavy Vehicle">Heavy Vehicle</option>
-                      <option value="Commercial Vehicle">
-                        Commercial Vehicle
-                      </option>
-                    </select>
+                    <TextInput<EditServiceForm>
+                      name="duration"
+                      title="Duration (Days)"
+                      placeholder="e.g., 30"
+                      required
+                      onlynumber
+                    />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Duration (Days) <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      {...methods.register("duration", { required: true })}
-                      type="number"
-                      placeholder="e.g., 365"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    <MultiSelect<EditServiceForm>
+                      name="status"
+                      title="Status"
+                      placeholder="Select status"
+                      required={true}
+                      options={[
+                        { label: "Active", value: "ACTIVE" },
+                        { label: "Inactive", value: "INACTIVE" },
+                        { label: "Upcoming", value: "UPCOMING" },
+                        { label: "Discontinued", value: "DISCONTINUED" },
+                      ]}
                     />
                   </div>
                 </div>
@@ -370,14 +328,11 @@ const EditServicePage = ({
                 </h3>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Description <span className="text-red-500">*</span>
-                    </label>
-                    <textarea
-                      {...methods.register("description", { required: true })}
+                    <TaxtAreaInput<EditServiceForm>
+                      name="description"
+                      title="Description"
                       placeholder="Enter detailed service description"
-                      rows={4}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      required
                     />
                   </div>
                   <div>
@@ -397,27 +352,19 @@ const EditServicePage = ({
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Requirements{" "}
-                      <span className="text-gray-500">(Optional)</span>
-                    </label>
-                    <textarea
-                      {...methods.register("requirements")}
-                      placeholder="Enter service requirements"
-                      rows={3}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    <TaxtAreaInput<EditServiceForm>
+                      name="requirements"
+                      title="Requirements (Optional)"
+                      placeholder="Enter service requirements (prerequisites, documents needed, etc.)"
+                      required={false}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Terms & Conditions{" "}
-                      <span className="text-gray-500">(Optional)</span>
-                    </label>
-                    <textarea
-                      {...methods.register("termsAndConditions")}
+                    <TaxtAreaInput<EditServiceForm>
+                      name="termsAndConditions"
+                      title="Terms & Conditions (Optional)"
                       placeholder="Enter terms and conditions"
-                      rows={3}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      required={false}
                     />
                   </div>
                 </div>
@@ -430,7 +377,7 @@ const EditServicePage = ({
                 </Button>
                 <Button
                   size="large"
-                  onClick={() => router.push(`/mtadmin/service/${serviceId}`)}
+                  onClick={() => router.push(`/admin/service/${serviceId}`)}
                 >
                   Cancel
                 </Button>
@@ -438,7 +385,7 @@ const EditServicePage = ({
                   type="primary"
                   size="large"
                   htmlType="submit"
-                  loading={isSubmitting}
+                  loading={updateServiceMutation.isPending}
                   icon={<AntDesignCheckOutlined />}
                   className="!bg-gradient-to-r from-purple-600 to-pink-600"
                 >

@@ -1,6 +1,33 @@
 import { ApiCall } from "./api";
 
 // Types
+export interface BookingService {
+  id: number;
+  bookingId?: number;
+  schoolServiceId: number;
+  schoolId: number;
+  userId: number;
+  serviceName: string;
+  serviceType: "LICENSE" | "ADDON";
+  price: number;
+  description?: string;
+  confirmationNumber?: string;
+  createdAt: string;
+  updatedAt: string;
+  schoolService?: {
+    id: number;
+    schoolServiceId: string;
+    licensePrice: number;
+    addonPrice: number;
+    service?: {
+      id: number;
+      serviceName: string;
+      category: string;
+      description?: string;
+    };
+  };
+}
+
 export interface BookingSession {
   id: number;
   bookingId: number;
@@ -49,6 +76,7 @@ export interface Booking {
   createdAt: string;
   updatedAt: string;
   sessions?: BookingSession[];
+  bookingServices?: BookingService[];
   customer?: {
     id: number;
     name: string;
@@ -159,6 +187,32 @@ const GET_PAGINATED_BOOKINGS = `
           id
           courseName
           price
+        }
+        bookingServices {
+          id
+          bookingId
+          schoolServiceId
+          schoolId
+          userId
+          serviceName
+          serviceType
+          price
+          description
+          confirmationNumber
+          createdAt
+          updatedAt
+          schoolService {
+            id
+            schoolServiceId
+            licensePrice
+            addonPrice
+            service {
+              id
+              serviceName
+              category
+              description
+            }
+          }
         }
       }
       total
@@ -306,6 +360,32 @@ const GET_BOOKING_BY_ID = `
         courseName
         price
       }
+      bookingServices {
+        id
+        bookingId
+        schoolServiceId
+        schoolId
+        userId
+        serviceName
+        serviceType
+        price
+        description
+        confirmationNumber
+        createdAt
+        updatedAt
+        schoolService {
+          id
+          schoolServiceId
+          licensePrice
+          addonPrice
+          service {
+            id
+            serviceName
+            category
+            description
+          }
+        }
+      }
     }
   }
 `;
@@ -395,6 +475,6 @@ export const updateBookingSession = async (updateData: {
   const { id, ...updateType } = updateData;
   return ApiCall<UpdateBookingSessionResponse>({
     query: UPDATE_BOOKING_SESSION,
-    variables: { id, updateType: { id, ...updateType } },
+    variables: { id, updateType: { ...updateType } },
   });
 };

@@ -116,10 +116,16 @@ const AddCarPage = () => {
   const createCarMutation = useMutation({
     mutationKey: ["createCar"],
     mutationFn: async (data: AddCarForm) => {
+      const selectedCarAdmin = carAdminsResponse?.data?.getAllCarAdmin?.find(
+        (c) => c.id === parseInt(data.carAdminId)
+      );
+      
       const createData = {
         schoolId,
         carId: data.carId,
         carAdminId: parseInt(data.carAdminId),
+        carName: selectedCarAdmin?.name || "",
+        model: selectedCarAdmin?.manufacturer || "",
         registrationNumber: data.registrationNumber,
         year: parseInt(data.year),
         color: data.color,
@@ -139,7 +145,7 @@ const AddCarPage = () => {
         nextServiceDate: data.nextServiceDate ? new Date(data.nextServiceDate) : undefined,
         assignedDriverId: parseInt(data.assignedDriverId),
       };
-      const selectedCarAdmin = carAdminsResponse?.data?.getAllCarAdmin?.find(c => c.id === parseInt(data.carAdminId));
+      
       return { response: await createCar(createData), selectedCarAdmin };
     },
     onSuccess: ({ response, selectedCarAdmin }) => {
@@ -229,8 +235,7 @@ const AddCarPage = () => {
                 <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
                   <p className="text-sm text-blue-800">
                     <strong>ℹ️ Note:</strong> Select a car model from the standardized master data. 
-                    This ensures consistency and prevents data entry errors. Car details like manufacturer, 
-                    model, fuel type, and transmission will be automatically linked.
+                    Car name and model will be automatically filled from the selected car.
                   </p>
                 </div>
 

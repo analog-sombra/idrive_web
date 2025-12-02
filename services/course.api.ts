@@ -235,7 +235,7 @@ export const updateCourse = async (updateData: {
   const { id, ...updateType } = updateData;
   return ApiCall<UpdateCourseResponse>({
     query: UPDATE_COURSE,
-    variables: { id, updateType: { id, ...updateType } },
+    variables: { id, updateType: { ...updateType } },
   });
 };
 

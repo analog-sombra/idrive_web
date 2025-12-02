@@ -110,6 +110,20 @@ const ServiceBookingListPage = () => {
         size: 200,
       },
       {
+        accessorKey: "schoolService",
+        header: "Category",
+        cell: (info) => {
+          const schoolService = info.getValue() as BookingService["schoolService"];
+          return (
+            <Tag color="purple">
+              {schoolService?.service?.category || "N/A"}
+            </Tag>
+          );
+        },
+        size: 140,
+        enableSorting: false,
+      },
+      {
         accessorKey: "serviceType",
         header: "Type",
         cell: (info) => (

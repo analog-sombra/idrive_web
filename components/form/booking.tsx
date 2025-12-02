@@ -11,11 +11,11 @@ import { TaxtAreaInput } from "./inputfields/textareainput";
 import { MultiSelect } from "./inputfields/multiselect";
 import { Modal, Button, Tag, Checkbox, Spin, Drawer, Input } from "antd";
 import { getCookie } from "cookies-next";
-import {
-  getAllServices,
-  type Service as APIService,
-} from "@/services/service.api";
 import { getAllCarCourses, type CarCourse } from "@/services/carcourse.api";
+import {
+  getAllSchoolServices,
+  type SchoolService,
+} from "@/services/school-service.api";
 import { getCourseById, type Course } from "@/services/course.api";
 import { searchUserByContact, type User } from "@/services/user.api";
 import { getPaginatedCars, getCarById } from "@/services/car.api";
@@ -51,10 +51,12 @@ type FormCourse = {
 
 type FormService = {
   id: number;
+  schoolServiceId: number;
   name: string;
-  price: number;
+  licensePrice: number;
+  addonPrice: number;
   serviceType: string;
-  description: string;
+  description?: string;
 };
 
 type CreateBookingResponse = {
@@ -285,26 +287,31 @@ const BookingForm = () => {
 
   const availableCars = carsResponse?.data?.getPaginatedCar?.data || [];
 
-  // Fetch services for the school
+  // Fetch services for the school from schoolService table
   const { data: servicesResponse, isLoading: loadingServices } = useQuery({
-    queryKey: ["services", schoolId],
+    queryKey: ["schoolServices", schoolId],
     queryFn: () =>
-      getAllServices({
-        schoolId: schoolId,
-        status: "ACTIVE",
-        serviceType: "ADDON",
+      getAllSchoolServices({
+        whereSearchInput: {
+          schoolId: schoolId,
+          status: "ACTIVE",
+        },
       }),
     enabled: schoolId > 0,
   });
 
   const services: FormService[] =
-    servicesResponse?.data?.getAllService?.map((service: APIService) => ({
-      id: service.id,
-      name: service.serviceName,
-      price: service.price,
-      serviceType: service.serviceType,
-      description: service.description,
-    })) || [];
+    servicesResponse?.data?.getAllSchoolService
+      ?.filter((ss: SchoolService) => ss.service) // Only include schoolServices with valid service relation
+      ?.map((schoolService: SchoolService) => ({
+        id: schoolService.service!.id, // service ID for display
+        schoolServiceId: schoolService.id, // schoolService ID for booking
+        name: schoolService.service!.serviceName,
+        licensePrice: schoolService.licensePrice,
+        addonPrice: schoolService.addonPrice,
+        serviceType: schoolService.service!.category, // Use service category
+        description: schoolService.service!.description,
+      })) || [];
 
   const methods = useForm<BookingFormData>({
     mode: "onChange",
@@ -328,9 +335,11 @@ const BookingForm = () => {
 
   const { watch, setValue } = methods;
   const formValues = watch();
+  const watchedCarId = watch("carId");
+  const watchedCourseId = watch("courseId");
 
   // Get the current selected car ID (either from URL or dropdown selection)
-  const currentCarId = formValues?.carId || carIdFromUrl;
+  const currentCarId = watchedCarId || carIdFromUrl;
   const selectedCarIdForCourses = currentCarId ? parseInt(currentCarId) : numericCarId;
 
   // Fetch courses assigned to the selected car using carCourse table
@@ -373,6 +382,13 @@ const BookingForm = () => {
     enrolledStudents: course.enrolledStudents,
   }));
 
+  // Initialize bookingDate form field with default date
+  useEffect(() => {
+    if (bookingDate) {
+      setValue("bookingDate", bookingDate.format("YYYY-MM-DD"), { shouldValidate: false });
+    }
+  }, [bookingDate, setValue]);
+
   // Update carName when selectedCarData is loaded
   useEffect(() => {
     if (selectedCarData) {
@@ -382,21 +398,34 @@ const BookingForm = () => {
 
   // Watch for car selection changes
   useEffect(() => {
-    const carId = formValues.carId;
-    if (carId && availableCars.length > 0 && !carIdFromUrl) {
-      handleCarChange(carId);
+    if (watchedCarId && availableCars.length > 0 && !carIdFromUrl) {
+      const car = availableCars.find((c) => c.id.toString() === watchedCarId.toString());
+      if (car) {
+        setValue("carName", car.carName, { shouldValidate: false });
+        // Fetch full car details including driver info via mutation
+        fetchCarDetails(car.id);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formValues.carId, availableCars]);
+  }, [watchedCarId]);
 
   // Watch for course selection changes
   useEffect(() => {
-    const courseId = formValues.courseId;
-    if (courseId && courseId !== 0 && courses.length > 0) {
-      handleCourseChange(courseId);
+    if (watchedCourseId && watchedCourseId !== 0 && courses.length > 0) {
+      const course = courses.find((c) => c.id === watchedCourseId);
+      if (course) {
+        if (!selectedCourse || selectedCourse.id !== watchedCourseId) {
+          setSelectedCourse(course);
+          setValue("courseName", course.name, { shouldValidate: false });
+          setValue("coursePrice", course.price, { shouldValidate: false });
+          calculateTotal(course.price, selectedServices);
+        }
+      }
+    } else if (watchedCourseId === 0 && selectedCourse) {
+      setSelectedCourse(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formValues.courseId, courses]);
+  }, [watchedCourseId]);
 
   // Generate time slots based on school timings and filter by availability
   // This prevents double booking by locking already booked date and time slots
@@ -413,6 +442,8 @@ const BookingForm = () => {
       if (bookingDate && (formValues.carId || carIdFromUrl)) {
         const selectedCarId = parseInt(formValues.carId || carIdFromUrl);
         const selectedDateStr = bookingDate.format("YYYY-MM-DD");
+        const isToday = dayjs().isSame(bookingDate, "day");
+        const currentTime = dayjs();
 
         // Get holidays data
         const holidays: Holiday[] =
@@ -451,14 +482,42 @@ const BookingForm = () => {
             )
             .map((session: BookingSession) => session.slot);
 
-          const availableSlots = allSlots.filter(
+          let availableSlots = allSlots.filter(
             (slot) => !bookedSlots.includes(slot)
           );
+
+          // If selected date is today, filter out past time slots
+          if (isToday) {
+            availableSlots = availableSlots.filter((slot) => {
+              // Extract start time from slot (format: "HH:MM-HH:MM")
+              const startTime = slot.split("-")[0];
+              const [hours, minutes] = startTime.split(":").map(Number);
+              
+              // Create a dayjs object for the slot time today
+              const slotTime = dayjs().hour(hours).minute(minutes).second(0);
+              
+              // Only include slots that are in the future
+              return slotTime.isAfter(currentTime);
+            });
+          }
+
           setAvailableTimeSlots(availableSlots);
         }
       } else {
-        // No car or date selected, show all slots
-        setAvailableTimeSlots(allSlots);
+        // No car or date selected, filter by current time if showing today's slots
+        let availableSlots = allSlots;
+        
+        if (!bookingDate || dayjs().isSame(bookingDate, "day")) {
+          const currentTime = dayjs();
+          availableSlots = allSlots.filter((slot) => {
+            const startTime = slot.split("-")[0];
+            const [hours, minutes] = startTime.split(":").map(Number);
+            const slotTime = dayjs().hour(hours).minute(minutes).second(0);
+            return slotTime.isAfter(currentTime);
+          });
+        }
+        
+        setAvailableTimeSlots(availableSlots);
       }
     }
   }, [
@@ -629,31 +688,7 @@ const BookingForm = () => {
     );
   };
 
-  // Handle car selection from dropdown
-  // Fetches full car details including driver info for booking sessions using mutation
-  const handleCarChange = (carId: string) => {
-    const car = availableCars.find((c) => c.id.toString() === carId.toString());
-    if (car) {
-      setValue("carId", carId);
-      setValue("carName", car.carName);
 
-      // Fetch full car details including driver info via mutation
-      fetchCarDetails(car.id);
-    }
-  };
-
-  // Handle course selection
-  const handleCourseChange = (courseId: number) => {
-    const course = courses.find((c) => c.id == courseId);
-    if (course) {
-      setSelectedCourse(course);
-      setValue("courseId", course.id);
-      setValue("courseName", course.name);
-      setValue("coursePrice", course.price);
-      calculateTotal(course.price, selectedServices);
-    } else {
-    }
-  };
 
   // Handle service selection
   const handleServiceToggle = (serviceId: number) => {
@@ -675,11 +710,11 @@ const BookingForm = () => {
     calculateTotal(selectedCourse?.price || 0, newSelectedServices);
   };
 
-  // Calculate total amount
+  // Calculate total amount using addonPrice from schoolService
   const calculateTotal = (coursePrice: number, serviceIds: number[]) => {
     const servicesTotal = services
       .filter((s) => serviceIds.includes(s.id))
-      .reduce((sum, service) => sum + service.price, 0);
+      .reduce((sum, service) => sum + service.addonPrice, 0);
 
     const total = coursePrice + servicesTotal;
     setValue("totalAmount", total);
@@ -829,12 +864,12 @@ const BookingForm = () => {
             variables: {
               inputType: {
                 bookingId: createdBooking.id,
-                serviceId: service.id,
+                schoolServiceId: service.schoolServiceId, // Use schoolServiceId instead of serviceId
                 schoolId: schoolId,
                 userId: customerData?.id,
                 serviceName: service.name,
-                serviceType: service.serviceType,
-                price: service.price,
+                serviceType: "ADDON", // BookingServiceType enum value
+                price: service.addonPrice, // Use addonPrice for addon services
                 description: service.description,
               },
             },
@@ -1507,7 +1542,8 @@ const BookingForm = () => {
                                 </p>
                                 <Tag
                                   color={
-                                    service.serviceType === "LICENSE"
+                                    service.serviceType === "NEW_LICENSE" ||
+                                    service.serviceType === "I_HOLD_LICENSE"
                                       ? "purple"
                                       : "cyan"
                                   }
@@ -1517,11 +1553,11 @@ const BookingForm = () => {
                                 </Tag>
                               </div>
                               <p className="text-lg font-bold text-blue-600">
-                                ₹{service.price.toLocaleString("en-IN")}
+                                ₹{service.addonPrice.toLocaleString("en-IN")}
                               </p>
                             </div>
                             <p className="text-sm text-gray-600 mt-2">
-                              {service.description}
+                              {service.description || "No description"}
                             </p>
                           </div>
                         </div>
@@ -1620,7 +1656,7 @@ const BookingForm = () => {
                   {selectedServices.length > 0 && (
                     <div className="pb-4 border-b border-gray-200">
                       <div className="text-sm text-gray-600 mb-2">
-                        Services:
+                        Add-on Services:
                       </div>
                       {services
                         .filter((s) => selectedServices.includes(s.id))
@@ -1633,7 +1669,7 @@ const BookingForm = () => {
                               {service.name}
                             </span>
                             <span className="text-sm font-semibold text-blue-600">
-                              ₹{service.price.toLocaleString("en-IN")}
+                              ₹{service.addonPrice.toLocaleString("en-IN")}
                             </span>
                           </div>
                         ))}
@@ -1786,7 +1822,7 @@ const BookingForm = () => {
                   pendingData.selectedServices.length > 0 && (
                     <div className="pt-2 border-t border-purple-200">
                       <p className="text-xs text-gray-600 mb-2">
-                        Selected Services:
+                        Add-on Services:
                       </p>
                       {pendingData.selectedServices.map((service) => (
                         <div
@@ -1797,7 +1833,7 @@ const BookingForm = () => {
                             • {service.name}
                           </span>
                           <span className="text-blue-600 font-semibold">
-                            ₹{service.price.toLocaleString("en-IN")}
+                            ₹{service.addonPrice.toLocaleString("en-IN")}
                           </span>
                         </div>
                       ))}
