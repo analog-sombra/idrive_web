@@ -43,7 +43,7 @@ import {
   type SortingState,
   type ColumnFiltersState,
 } from "@tanstack/react-table";
-import { getAllBookings, type Booking, type BookingSession } from "@/services/booking.api";
+import { getAllBookings, type Booking, type BookingSession, type BookingService } from "@/services/booking.api";
 
 const { Search } = Input;
 
@@ -51,14 +51,6 @@ const { Search } = Input;
 interface ExtendedBookingSession extends BookingSession {
   deletedAt?: string;
   notes?: string;
-}
-
-interface BookingService {
-  id: number;
-  service?: {
-    serviceName: string;
-    servicePrice: number;
-  };
 }
 
 interface ExtendedBooking extends Booking {
@@ -735,8 +727,8 @@ const StudentsPage = () => {
                   {selectedBooking.bookingServices.map((bs: BookingService) => (
                     <Card key={bs.id} size="small" className="bg-orange-50 border-orange-200">
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold">{bs.service?.serviceName}</span>
-                        <Tag color="orange">₹{bs.service?.servicePrice}</Tag>
+                        <span className="font-semibold">{bs.serviceName}</span>
+                        <Tag color="orange">₹{bs.price}</Tag>
                       </div>
                     </Card>
                   ))}
