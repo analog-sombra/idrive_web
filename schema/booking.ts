@@ -43,6 +43,8 @@ export const BookingSchema = v.pipe(
       })
     )),
     totalAmount: v.number(),
+    bookingDiscount: v.optional(v.number()),
+    serviceDiscount: v.optional(v.number()),
     notes: v.optional(v.string()),
   })
 );

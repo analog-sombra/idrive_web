@@ -47,6 +47,7 @@ type ServiceBookingFormData = {
   servicePrice: number;
   selectedService?: FormService;
   totalAmount: number;
+  discount?: number;
   notes: string;
 };
 
@@ -59,6 +60,7 @@ const ServiceBookingForm = () => {
   const [selectedService, setSelectedService] = useState<FormService | null>(
     null
   );
+  const [discount, setDiscount] = useState<number>(0);
   const [customerData, setCustomerData] = useState<Customer | null>(null);
   const [showCreateUserDrawer, setShowCreateUserDrawer] = useState(false);
   const [newUserName, setNewUserName] = useState("");
@@ -111,6 +113,7 @@ const ServiceBookingForm = () => {
       serviceName: "",
       servicePrice: 0,
       totalAmount: 0,
+      discount: 0,
       notes: "",
     },
   });
@@ -138,9 +141,11 @@ const ServiceBookingForm = () => {
           setValue("servicePrice", service.licensePrice, {
             shouldValidate: false,
           });
-          setValue("totalAmount", service.licensePrice, {
+          const totalAfterDiscount = Math.max(0, service.licensePrice - discount);
+          setValue("totalAmount", totalAfterDiscount, {
             shouldValidate: false,
           });
+          setValue("discount", discount, { shouldValidate: false });
         }
       }
     } else if (watchedServiceId == 0 && selectedService) {
@@ -371,6 +376,7 @@ const ServiceBookingForm = () => {
             serviceName: data.serviceName,
             serviceType: "LICENSE", // Always LICENSE for this page
             price: data.servicePrice,
+            discount: data.discount || 0,
             description: data.selectedService?.description || "",
             confirmationNumber: confirmationNumber,
           },
@@ -630,6 +636,66 @@ const ServiceBookingForm = () => {
                 </div>
               </div>
 
+              {/* Discount Card */}
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+                <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                  <DollarOutlined className="text-green-600" />
+                  Discount
+                  <Tag color="blue" className="ml-2">
+                    Optional
+                  </Tag>
+                </h2>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Service Discount (₹)
+                    </label>
+                    <Input
+                      type="number"
+                      size="large"
+                      placeholder="Enter discount amount"
+                      min={0}
+                      value={discount || ""}
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value) || 0;
+                        setDiscount(value);
+                        if (selectedService) {
+                          const totalAfterDiscount = Math.max(0, selectedService.licensePrice - value);
+                          setValue("totalAmount", totalAfterDiscount);
+                          setValue("discount", value);
+                        }
+                      }}
+                      prefix="₹"
+                      disabled={!selectedService}
+                    />
+                    {selectedService ? (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Discount applied to the service booking
+                      </p>
+                    ) : (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Please select a service to apply discount
+                      </p>
+                    )}
+                  </div>
+
+                  {discount > 0 && selectedService && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                      <p className="text-sm font-semibold text-green-800 mb-1">
+                        Discount Amount: ₹{discount.toLocaleString("en-IN")}
+                      </p>
+                      <p className="text-xs text-green-700">
+                        Original Price: ₹{selectedService.licensePrice.toLocaleString("en-IN")}
+                      </p>
+                      <p className="text-xs text-green-700">
+                        Final Price: ₹{Math.max(0, selectedService.licensePrice - discount).toLocaleString("en-IN")}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Notes Card */}
               <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
                 <h2 className="text-xl font-bold text-gray-900 mb-6">
@@ -677,7 +743,7 @@ const ServiceBookingForm = () => {
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm text-gray-600">Service:</span>
                       </div>
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between mb-2">
                         <span className="font-semibold text-gray-900 text-sm">
                           {selectedService.name}
                         </span>
@@ -686,6 +752,14 @@ const ServiceBookingForm = () => {
                           {selectedService.licensePrice.toLocaleString("en-IN")}
                         </span>
                       </div>
+                      {discount > 0 && (
+                        <div className="flex items-center justify-between text-sm mt-1">
+                          <span className="text-green-600">Discount:</span>
+                          <span className="font-semibold text-green-600">
+                            -₹{discount.toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -699,7 +773,11 @@ const ServiceBookingForm = () => {
                         ₹{(formValues.totalAmount || 0).toLocaleString("en-IN")}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-600">Service booking fee</p>
+                    <p className="text-xs text-gray-600">
+                      {discount > 0 
+                        ? `After ₹${discount.toLocaleString("en-IN")} discount`
+                        : "Service booking fee"}
+                    </p>
                   </div>
 
                   {/* Submit Button */}
@@ -828,6 +906,37 @@ const ServiceBookingForm = () => {
                 )}
               </div>
             </div>
+
+            {/* Discount Information */}
+            {pendingData.discount && pendingData.discount > 0 && (
+              <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                <h3 className="font-bold text-gray-900 mb-3">
+                  Discount Applied
+                </h3>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-700">Original Price:</span>
+                    <span className="text-gray-900 font-semibold">
+                      ₹{pendingData.servicePrice.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-700">Discount Amount:</span>
+                    <span className="text-green-600 font-semibold">
+                      -₹{pendingData.discount.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <div className="pt-2 border-t border-green-200">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-gray-900">Final Price:</span>
+                      <span className="font-bold text-green-600">
+                        ₹{pendingData.totalAmount.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-4 border-2 border-blue-300">
               <div className="flex items-center justify-between">

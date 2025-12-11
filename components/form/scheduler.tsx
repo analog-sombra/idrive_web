@@ -10,6 +10,7 @@ import {
   Select,
   Tabs,
   Spin,
+  Modal,
 } from "antd";
 import {
   CheckCircleOutlined,
@@ -17,6 +18,7 @@ import {
   CalendarOutlined,
   CarOutlined,
   ReloadOutlined,
+  InfoCircleOutlined,
 } from "@ant-design/icons";
 import dayjs, { Dayjs } from "dayjs";
 import isSameOrAfter from "dayjs/plugin/isSameOrAfter";
@@ -58,12 +60,22 @@ interface Booking {
   sessions?: BookingSession[];
 }
 
+interface Driver {
+  id: number;
+  driverId: string;
+  name: string;
+  email?: string;
+  mobile?: string;
+  status: string;
+}
+
 interface CarData {
   id: number;
   carName: string;
   model: string;
   registrationNumber: string;
   status: string;
+  assignedDriver?: Driver;
 }
 
 interface EnrichedCar extends CarData {
@@ -164,17 +176,18 @@ const CarScheduler = () => {
   const [activeTab, setActiveTab] = useState<
     "morning" | "afternoon" | "evening"
   >("morning");
+  const [showStatusModal, setShowStatusModal] = useState(false);
 
   // Get school ID from cookie
   const schoolId: number = parseInt(getCookie("school")?.toString() || "0");
-  
+
   // Fetch school data for timing information
   const { data: schoolResponse, isLoading: loadingSchool } = useQuery({
     queryKey: ["school", schoolId],
     queryFn: () => getSchoolById(schoolId),
     enabled: schoolId > 0,
   });
-  
+
   const schoolData = schoolResponse?.data?.getSchoolById;
 
   // Generate all available time slots based on school timings
@@ -591,7 +604,6 @@ const CarScheduler = () => {
 
     if (allSlotSessions.length == 0) return null;
 
-
     // Sort all sessions by date to find the absolute last one
     const sortedSessions = allSlotSessions.sort(
       (a, b) => dayjs(a.sessionDate).valueOf() - dayjs(b.sessionDate).valueOf()
@@ -621,7 +633,6 @@ const CarScheduler = () => {
         nextDate = nextDate.add(1, "day");
       }
     }
-
 
     return nextDate.format("YYYY-MM-DD");
   };
@@ -713,7 +724,9 @@ const CarScheduler = () => {
           onClick={() => {
             const bookingUrl = `/mtadmin/booking?carId=${
               car.id
-            }&slot=${encodeURIComponent(slot)}&date=${selectedDate.format('YYYY-MM-DD')}`;
+            }&slot=${encodeURIComponent(slot)}&date=${selectedDate.format(
+              "YYYY-MM-DD"
+            )}`;
             router.push(bookingUrl);
           }}
         >
@@ -734,16 +747,21 @@ const CarScheduler = () => {
       fixed: "left",
       width: 220,
       render: (_, car) => (
-        <div className="space-y-2 py-2">
+        <div className="py-2">
           <div className="flex items-center gap-2">
             <CarOutlined className="text-blue-600 text-xl" />
             <span className="font-bold text-lg text-gray-900">
-              {car.carName}
+              {car.carName} - ({car.registrationNumber})
             </span>
           </div>
           <div className="text-base text-gray-700 font-medium">{car.model}</div>
-          <div className="text-sm text-gray-500">{car.registrationNumber}</div>
-          <div className="mt-2 flex items-center gap-2 flex-wrap">
+          {car.assignedDriver && (
+            <div className="text-sm text-gray-600">
+              <span className="font-medium">Driver:</span>{" "}
+              {car.assignedDriver.name}
+            </div>
+          )}
+          <div className="mt-1 flex items-center gap-2 flex-wrap">
             <Tooltip
               title={
                 car.status == "AVAILABLE"
@@ -792,9 +810,8 @@ const CarScheduler = () => {
     ...currentSlots.map((slot) => ({
       title: (
         <div className="text-center py-1">
-          <div className="font-bold text-base">{slot.split("-")[0]}</div>
-          <div className="text-xs text-gray-500 font-normal">
-            {parseInt(slot) < 12 ? "AM" : "PM"}
+          <div className="font-bold text-base">
+            {slot.split("-")[0]} {parseInt(slot) < 12 ? "AM" : "PM"}
           </div>
         </div>
       ),
@@ -818,10 +835,12 @@ const CarScheduler = () => {
 
   // Initial loading - only wait for essential data
   const isInitialLoading = loadingSchool || loadingCars;
-  
-  // Background loading for heavy queries
-  const isBackgroundLoading = loadingBookings || loadingHolidays || (bookingIds.length > 0 && loadingFutureSessions);
 
+  // Background loading for heavy queries
+  const isBackgroundLoading =
+    loadingBookings ||
+    loadingHolidays ||
+    (bookingIds.length > 0 && loadingFutureSessions);
 
   // Show loading spinner while essential data is being fetched
   if (isInitialLoading) {
@@ -829,15 +848,11 @@ const CarScheduler = () => {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
         <div className="text-center">
           <Spin size="large" />
-          <p className="text-gray-600 text-lg mt-4">
-            Loading scheduler...
-          </p>
+          <p className="text-gray-600 text-lg mt-4">Loading scheduler...</p>
         </div>
       </div>
     );
   }
-
-
 
   // Only check for missing data after loading is complete
   if (!schoolData) {
@@ -851,8 +866,6 @@ const CarScheduler = () => {
       </div>
     );
   }
-
-
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-6">
@@ -927,11 +940,11 @@ const CarScheduler = () => {
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 mb-5">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-3 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                <CalendarOutlined className="mr-2" />
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                <CalendarOutlined className="mr-1" />
                 Select Date
               </label>
               <DatePicker
@@ -981,8 +994,8 @@ const CarScheduler = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                <CarOutlined className="mr-2" />
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                <CarOutlined className="mr-1" />
                 Filter by Status
               </label>
               <Select
@@ -1004,101 +1017,134 @@ const CarScheduler = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
                 Results
               </label>
-              <div className="text-2xl font-bold text-blue-600 mt-2">
+              <div className="text-xl font-bold text-blue-600">
                 {filteredCars.length} Car{filteredCars.length !== 1 ? "s" : ""}
               </div>
             </div>
+
+            <div>
+              <Button
+                type="default"
+                icon={<InfoCircleOutlined />}
+                onClick={() => setShowStatusModal(true)}
+                size="large"
+                className="w-full"
+              >
+                Status Info
+              </Button>
+            </div>
           </div>
         </div>
+
+        {/* Status Legend Modal */}
+        <Modal
+          title="Status Information"
+          open={showStatusModal}
+          onCancel={() => setShowStatusModal(false)}
+          footer={[
+            <Button key="close" type="primary" onClick={() => setShowStatusModal(false)}>
+              Close
+            </Button>,
+          ]}
+          width={700}
+        >
+          <div className="space-y-6">
+            {/* Slot Status Legend */}
+            <div>
+              <h3 className="text-base font-bold text-gray-800 mb-3">Slot Status:</h3>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-14 h-14 bg-green-50 border-2 border-green-400 rounded flex flex-col items-center justify-center">
+                    <CheckCircleOutlined className="text-green-600 text-base" />
+                    <span className="text-xs text-green-700 font-bold">Free</span>
+                  </div>
+                  <div>
+                    <div className="font-medium text-gray-900">Available</div>
+                    <div className="text-sm text-gray-600">Slot is free and can be booked</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-14 h-14 bg-red-50 border-2 border-red-300 rounded flex flex-col items-center justify-center p-1">
+                    <CloseCircleOutlined className="text-red-600 text-base" />
+                    <div className="text-center">
+                      <div className="text-[9px] text-red-600 font-medium leading-tight">
+                        Free from
+                      </div>
+                      <div className="text-[10px] text-red-700 font-bold leading-tight">
+                        15 Nov
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="font-medium text-gray-900">Booked</div>
+                    <div className="text-sm text-gray-600">Shows the next available date when slot becomes free</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-14 h-14 bg-gray-300 rounded flex flex-col items-center justify-center">
+                    <span className="text-lg">🚫</span>
+                    <span className="text-xs text-gray-700 font-medium">
+                      Holiday
+                    </span>
+                  </div>
+                  <div>
+                    <div className="font-medium text-gray-900">Blocked</div>
+                    <div className="text-sm text-gray-600">Slot is unavailable due to holiday</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Car Status Legend */}
+            <div>
+              <h3 className="text-base font-bold text-gray-800 mb-3">Car Status:</h3>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <Tag color="green" className="text-xs px-2 py-1 m-0 font-medium">
+                    ✓ AVAILABLE
+                  </Tag>
+                  <div>
+                    <div className="font-medium text-gray-900">Ready for booking</div>
+                    <div className="text-sm text-gray-600">Car is operational and available</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Tag color="blue" className="text-xs px-2 py-1 m-0 font-medium">
+                    🚗 IN USE
+                  </Tag>
+                  <div>
+                    <div className="font-medium text-gray-900">Currently booked</div>
+                    <div className="text-sm text-gray-600">Car has active bookings</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Tag color="orange" className="text-xs px-2 py-1 m-0 font-medium">
+                    🔧 MAINTENANCE
+                  </Tag>
+                  <div>
+                    <div className="font-medium text-gray-900">Under repair</div>
+                    <div className="text-sm text-gray-600">Car is undergoing maintenance</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Tag color="red" className="text-xs px-2 py-1 m-0 font-medium">
+                    ✗ INACTIVE
+                  </Tag>
+                  <div>
+                    <div className="font-medium text-gray-900">Not in service</div>
+                    <div className="text-sm text-gray-600">Car is not available for booking</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Modal>
 
         {/* School Info Banner */}
         {/*   */}
-
-        {/* Legend & Info */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
-          {/* Legend */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-            <div className="flex flex-wrap items-center gap-4">
-              <span className="text-sm font-bold text-gray-800">
-                Slot Status:
-              </span>
-              <div className="flex items-center gap-2">
-                <div className="w-14 h-14 bg-green-50 border-2 border-green-400 rounded flex flex-col items-center justify-center">
-                  <CheckCircleOutlined className="text-green-600 text-base" />
-                  <span className="text-xs text-green-700 font-bold">Free</span>
-                </div>
-                <span className="text-sm text-gray-700">Available</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-14 h-14 bg-red-50 border-2 border-red-300 rounded flex flex-col items-center justify-center p-1">
-                  <CloseCircleOutlined className="text-red-600 text-base" />
-                  <div className="text-center">
-                    <div className="text-[9px] text-red-600 font-medium leading-tight">
-                      Free from
-                    </div>
-                    <div className="text-[10px] text-red-700 font-bold leading-tight">
-                      15 Nov
-                    </div>
-                  </div>
-                </div>
-                <span className="text-sm text-gray-700">
-                  Booked (shows when free)
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-14 h-14 bg-gray-300 rounded flex flex-col items-center justify-center">
-                  <span className="text-lg">🚫</span>
-                  <span className="text-xs text-gray-700 font-medium">
-                    Holiday
-                  </span>
-                </div>
-                <span className="text-sm text-gray-700">Blocked</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Car Status Info */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-            <div className="flex flex-wrap items-center gap-4">
-              <span className="text-sm font-bold text-gray-800">
-                Car Status:
-              </span>
-              <div className="flex items-center gap-2">
-                <Tag
-                  color="green"
-                  className="text-xs px-2 py-1 m-0 font-medium"
-                >
-                  ✓ AVAILABLE
-                </Tag>
-                <span className="text-sm text-gray-700">Ready for booking</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Tag color="blue" className="text-xs px-2 py-1 m-0 font-medium">
-                  🚗 IN USE
-                </Tag>
-                <span className="text-sm text-gray-700">Currently booked</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Tag
-                  color="orange"
-                  className="text-xs px-2 py-1 m-0 font-medium"
-                >
-                  🔧 MAINTENANCE
-                </Tag>
-                <span className="text-sm text-gray-700">Under repair</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Tag color="red" className="text-xs px-2 py-1 m-0 font-medium">
-                  ✗ INACTIVE
-                </Tag>
-                <span className="text-sm text-gray-700">Not in service</span>
-              </div>
-            </div>
-          </div>
-        </div>
 
         {/* Time Period Tabs with Schedule Table */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden relative">

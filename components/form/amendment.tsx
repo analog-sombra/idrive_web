@@ -339,7 +339,7 @@ const AmendmentForm = () => {
     setSelectedSessionIds([]);
     setAmendmentAction(null);
     setNewDates([]);
-    
+
     // Fetch all sessions for this car to block already booked dates
     try {
       const carSessionsResponse = await ApiCall({
@@ -359,8 +359,10 @@ const AmendmentForm = () => {
           },
         },
       });
-      
-      const carSessions = (carSessionsResponse?.data as GetAllBookingSessionResponse)?.getAllBookingSession || [];
+
+      const carSessions =
+        (carSessionsResponse?.data as GetAllBookingSessionResponse)
+          ?.getAllBookingSession || [];
       setAllCarSessions(carSessions);
     } catch (error) {
       console.error("Error fetching car sessions:", error);
@@ -409,18 +411,18 @@ const AmendmentForm = () => {
 
     // Update form value with all new dates
     const dateStrings = updatedDates
-      .filter(d => d) // Filter out null/undefined
+      .filter((d) => d) // Filter out null/undefined
       .map((d) => d.format("YYYY-MM-DD"))
       .join(",");
     setValue("newDate", dateStrings);
   };
-  
+
   // Check if a date is blocked (already booked, cancelled, or holiday for the car in same slot)
   const isDateBlocked = (date: Dayjs): boolean => {
     if (!selectedBooking) return false;
-    
+
     const dateStr = date.format("YYYY-MM-DD");
-    
+
     // Check weekend restriction if school has a weekly holiday
     if (schoolData?.weeklyHoliday) {
       const dayOfWeek = date.day(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
@@ -441,33 +443,42 @@ const AmendmentForm = () => {
         return true;
       }
     }
-    
+
     // Check if date is already in car's bookings (including ALL dates from current booking)
-    const isBookedByCar = allCarSessions.some(session => {
-      const sessionDateStr = dayjs.utc(session.sessionDate).format("YYYY-MM-DD");
-      
+    const isBookedByCar = allCarSessions.some((session) => {
+      const sessionDateStr = dayjs
+        .utc(session.sessionDate)
+        .format("YYYY-MM-DD");
+
       // Block ALL dates that have PENDING, CONFIRMED, or CANCELLED sessions
       // This includes dates from the current booking to prevent selecting the old dates again
-      return sessionDateStr == dateStr && 
-             (session.status == "PENDING" || session.status == "CONFIRMED" || session.status == "CANCELLED");
+      return (
+        sessionDateStr == dateStr &&
+        (session.status == "PENDING" ||
+          session.status == "CONFIRMED" ||
+          session.status == "CANCELLED")
+      );
     });
-    
+
     // Check school holidays
     const holidays: Holiday[] =
       (holidaysResponse?.data as GetAllHolidayResponse)?.getAllHoliday || [];
-    
+
     const isHoliday = holidays.some((holiday: Holiday) => {
       const holidayStart = dayjs.utc(holiday.startDate).format("YYYY-MM-DD");
       const holidayEnd = dayjs.utc(holiday.endDate).format("YYYY-MM-DD");
       const isInDateRange = dateStr >= holidayStart && dateStr <= holidayEnd;
-      
+
       // For SCHOOL type holidays, block all cars
       if (holiday.declarationType == "SCHOOL") {
         return isInDateRange;
       }
-      
+
       // For CAR type holidays, only block if it's the same car
-      if (holiday.declarationType == "CAR" && holiday.carId == selectedBooking.carId) {
+      if (
+        holiday.declarationType == "CAR" &&
+        holiday.carId == selectedBooking.carId
+      ) {
         // If slots are specified, check if booking slot matches
         if (holiday.slots) {
           try {
@@ -479,10 +490,10 @@ const AmendmentForm = () => {
         }
         return isInDateRange;
       }
-      
+
       return false;
     });
-    
+
     return isBookedByCar || isHoliday;
   };
 
@@ -726,8 +737,8 @@ const AmendmentForm = () => {
 
   return (
     <FormProvider {...methods}>
-      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50 p-6">
-        <div className="max-w-7xl mx-auto">
+      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50 py-6">
+        <div className=" mx-auto px-6">
           {/* Header */}
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
@@ -891,6 +902,133 @@ const AmendmentForm = () => {
                   </div>
                 </div>
               )}
+
+              {/* Booking Details Card - Moved to Left Sidebar */}
+              {selectedBooking && (
+                <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-4">
+                  <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+                    <BookOutlined className="text-blue-600" />
+                    Booking Details
+                  </h2>
+
+                  {/* Course Date Range */}
+                  {selectedBooking.sessions &&
+                    selectedBooking.sessions.length > 0 &&
+                    (() => {
+                      const sortedSessions = [...selectedBooking.sessions]
+                        .filter(
+                          (s) =>
+                            s.status == "PENDING" || s.status == "CONFIRMED"
+                        )
+                        .sort((a, b) =>
+                          dayjs
+                            .utc(a.sessionDate)
+                            .diff(dayjs.utc(b.sessionDate))
+                        );
+                      const startDate =
+                        sortedSessions.length > 0
+                          ? dayjs
+                              .utc(sortedSessions[0].sessionDate)
+                              .format("DD MMM YYYY")
+                          : "N/A";
+                      const endDate =
+                        sortedSessions.length > 0
+                          ? dayjs
+                              .utc(
+                                sortedSessions[sortedSessions.length - 1]
+                                  .sessionDate
+                              )
+                              .format("DD MMM YYYY")
+                          : "N/A";
+                      const firstSession = selectedBooking.sessions[0];
+
+                      return (
+                        <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-3 mb-3 border-2 border-blue-200">
+                          <div className="grid grid-cols-1 gap-2">
+                            <div>
+                              <div className="text-xs text-gray-600 mb-1">
+                                Course Duration
+                              </div>
+                              <div className="font-bold text-gray-900">
+                                {startDate} - {endDate}
+                              </div>
+                            </div>
+                            {firstSession?.driver && (
+                              <div>
+                                <div className="text-xs text-gray-600 mb-1">
+                                  Trainer
+                                </div>
+                                <div className="font-bold text-gray-900">
+                                  {firstSession.driver.name}
+                                </div>
+                              </div>
+                            )}
+                            {firstSession?.car && (
+                              <div>
+                                <div className="text-xs text-gray-600 mb-1">
+                                  Car Registration
+                                </div>
+                                <div className="font-bold text-gray-900">
+                                  {firstSession.car.registrationNumber}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                  <div className="grid grid-cols-1 gap-2">
+                    <div className="flex gap-4">
+                      <div className="bg-blue-50 flex-1 rounded-lg p-3 border-2 border-blue-200">
+                        <div className="text-xs text-gray-600 mb-0.5">
+                          Booking ID
+                        </div>
+                        <div className="font-bold text-base text-gray-900">
+                          {selectedBooking.bookingId}
+                        </div>
+                      </div>
+
+                      <div className="bg-green-50 flex-1 rounded-lg p-3 border-2 border-green-200">
+                        <div className="text-xs text-gray-600 mb-0.5">
+                          Customer
+                        </div>
+                        <div className="font-bold text-base text-gray-900">
+                          {selectedBooking.customerName}
+                        </div>
+                        <div className="text-xs text-gray-600">
+                          {selectedBooking.customerMobile}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-4">
+                      <div className="bg-purple-50 flex-1 rounded-lg p-3 border-2 border-purple-200">
+                        <div className="text-xs text-gray-600 mb-0.5">
+                          Car & Slot
+                        </div>
+                        <div className="font-bold text-sm text-gray-900">
+                          {selectedBooking.carName}
+                        </div>
+                        <div className="text-xs text-gray-600">
+                          {selectedBooking.slot}
+                        </div>
+                      </div>
+                      <div className="bg-orange-50 flex-1 rounded-lg p-3 border-2 border-orange-200">
+                        <div className="text-xs text-gray-600 mb-0.5">
+                          Course
+                        </div>
+                        <div className="font-bold text-sm text-gray-900">
+                          {selectedBooking.courseName}
+                        </div>
+                        <div className="text-xs text-blue-600 font-semibold">
+                          ₹{selectedBooking.totalAmount}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Main Section - Right */}
@@ -914,173 +1052,99 @@ const AmendmentForm = () => {
                 </div>
               ) : (
                 <>
-                  {/* Booking Details Card */}
-                  <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
-                    <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-                      <BookOutlined className="text-blue-600" />
-                      Booking Details
-                    </h2>
-
-                    {/* Course Date Range */}
-                    {selectedBooking.sessions && selectedBooking.sessions.length > 0 && (() => {
-                      const sortedSessions = [...selectedBooking.sessions]
-                        .filter(s => s.status == 'PENDING' || s.status == 'CONFIRMED')
-                        .sort((a, b) => dayjs.utc(a.sessionDate).diff(dayjs.utc(b.sessionDate)));
-                      const startDate = sortedSessions.length > 0 ? dayjs.utc(sortedSessions[0].sessionDate).format('DD MMM YYYY') : 'N/A';
-                      const endDate = sortedSessions.length > 0 ? dayjs.utc(sortedSessions[sortedSessions.length - 1].sessionDate).format('DD MMM YYYY') : 'N/A';
-                      const firstSession = selectedBooking.sessions[0];
-                      
-                      return (
-                        <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-4 mb-6 border-2 border-blue-200">
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                              <div className="text-xs text-gray-600 mb-1">Course Duration</div>
-                              <div className="font-bold text-gray-900">{startDate} - {endDate}</div>
-                            </div>
-                            {firstSession?.driver && (
-                              <div>
-                                <div className="text-xs text-gray-600 mb-1">Trainer</div>
-                                <div className="font-bold text-gray-900">{firstSession.driver.name}</div>
-                              </div>
-                            )}
-                            {firstSession?.car && (
-                              <div>
-                                <div className="text-xs text-gray-600 mb-1">Car Registration</div>
-                                <div className="font-bold text-gray-900">{firstSession.car.registrationNumber}</div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })()}
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                      <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200">
-                        <div className="text-xs text-gray-600 mb-1">
-                          Booking ID
-                        </div>
-                        <div className="font-bold text-lg text-gray-900">
-                          {selectedBooking.bookingId}
-                        </div>
-                      </div>
-                      <div className="bg-green-50 rounded-lg p-4 border-2 border-green-200">
-                        <div className="text-xs text-gray-600 mb-1">
-                          Customer
-                        </div>
-                        <div className="font-bold text-lg text-gray-900">
-                          {selectedBooking.customerName}
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          {selectedBooking.customerMobile}
-                        </div>
-                      </div>
-                      <div className="bg-purple-50 rounded-lg p-4 border-2 border-purple-200">
-                        <div className="text-xs text-gray-600 mb-1">
-                          Car & Slot
-                        </div>
-                        <div className="font-bold text-gray-900">
-                          {selectedBooking.carName}
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          {selectedBooking.slot}
-                        </div>
-                      </div>
-                      <div className="bg-orange-50 rounded-lg p-4 border-2 border-orange-200">
-                        <div className="text-xs text-gray-600 mb-1">Course</div>
-                        <div className="font-bold text-gray-900">
-                          {selectedBooking.courseName}
-                        </div>
-                        <div className="text-sm text-blue-600 font-semibold">
-                          ₹{selectedBooking.totalAmount}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
                   {/* Booking Dates Card */}
                   <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
-                    <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                    <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
                       <CalendarOutlined className="text-green-600" />
                       Booked Sessions ({selectedBooking.sessions?.length || 0})
                     </h2>
 
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                      {(selectedBooking.sessions || []).map((session) => {
-                        const sessionDate = dayjs
-                          .utc(session.sessionDate)
-                          .format("YYYY-MM-DD");
-                        const isFuture = dayjs
-                          .utc(session.sessionDate)
-                          .isAfter(dayjs(), "day");
-                        const isSelected = selectedDates.includes(sessionDate);
-                        const isDisabled =
-                          (session.status !== "PENDING" &&
-                            session.status !== "CONFIRMED") ||
-                          !isFuture;
+                    <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                      {(selectedBooking.sessions || [])
+                        .sort((a, b) =>
+                          dayjs
+                            .utc(a.sessionDate)
+                            .diff(dayjs.utc(b.sessionDate))
+                        )
+                        .map((session) => {
+                          const sessionDate = dayjs
+                            .utc(session.sessionDate)
+                            .format("YYYY-MM-DD");
+                          const isFuture = dayjs
+                            .utc(session.sessionDate)
+                            .isAfter(dayjs(), "day");
+                          const isSelected =
+                            selectedDates.includes(sessionDate);
+                          const isDisabled =
+                            (session.status !== "PENDING" &&
+                              session.status !== "CONFIRMED") ||
+                            !isFuture;
 
-                        return (
-                          <div
-                            key={session.id}
-                            className={`relative rounded-lg p-3 border-2 transition-all ${
-                              isDisabled
-                                ? "bg-gray-100 border-gray-300 cursor-not-allowed opacity-60"
-                                : isSelected
-                                ? "bg-blue-100 border-blue-500 cursor-pointer"
-                                : "bg-white border-gray-300 cursor-pointer hover:border-blue-400"
-                            }`}
-                            onClick={() => {
-                              if (!isDisabled && amendmentAction) {
-                                handleToggleDate(session.id, sessionDate);
-                              }
-                            }}
-                          >
-                            {amendmentAction && !isDisabled && (
-                              <Checkbox
-                                checked={isSelected}
-                                className="absolute top-2 right-2"
-                              />
-                            )}
-                            <div className="text-center">
-                              <div className="font-bold text-gray-900">
-                                {dayjs
-                                  .utc(session.sessionDate)
-                                  .format("DD MMM")}
-                              </div>
-                              <div className="text-xs text-gray-600">
-                                {dayjs.utc(session.sessionDate).format("YYYY")}
-                              </div>
-                              <div className="mt-1 text-xs text-gray-500">
-                                Day {session.dayNumber}
-                              </div>
-                              <div className="mt-2">
-                                <Tag
-                                  color={
-                                    session.status == "COMPLETED"
-                                      ? "success"
+                          return (
+                            <div
+                              key={session.id}
+                              className={`relative rounded-lg p-2 border-2 transition-all ${
+                                isDisabled
+                                  ? "bg-gray-100 border-gray-300 cursor-not-allowed opacity-60"
+                                  : isSelected
+                                  ? "bg-blue-100 border-blue-500 cursor-pointer"
+                                  : "bg-white border-gray-300 cursor-pointer hover:border-blue-400"
+                              }`}
+                              onClick={() => {
+                                if (!isDisabled && amendmentAction) {
+                                  handleToggleDate(session.id, sessionDate);
+                                }
+                              }}
+                            >
+                              {amendmentAction && !isDisabled && (
+                                <Checkbox
+                                  checked={isSelected}
+                                  className="absolute top-1 right-1"
+                                />
+                              )}
+                              <div className="text-center">
+                                <div className="font-bold text-sm text-gray-900">
+                                  {dayjs
+                                    .utc(session.sessionDate)
+                                    .format("DD MMM")}
+                                </div>
+                                <div className="text-xs text-gray-600">
+                                  {dayjs
+                                    .utc(session.sessionDate)
+                                    .format("YYYY")}
+                                </div>
+                                <div className="mt-0.5 text-xs text-gray-500">
+                                  Day {session.dayNumber}
+                                </div>
+                                <div className="mt-1">
+                                  <Tag
+                                    color={
+                                      session.status == "COMPLETED"
+                                        ? "success"
+                                        : session.status == "CANCELLED"
+                                        ? "error"
+                                        : isFuture
+                                        ? "processing"
+                                        : "default"
+                                    }
+                                    className="text-xs px-1 py-0"
+                                  >
+                                    {session.status == "COMPLETED"
+                                      ? "Done"
                                       : session.status == "CANCELLED"
-                                      ? "error"
+                                      ? "Cancelled"
                                       : isFuture
-                                      ? "processing"
-                                      : "default"
-                                  }
-                                  className="text-xs"
-                                >
-                                  {session.status == "COMPLETED"
-                                    ? "Done"
-                                    : session.status == "CANCELLED"
-                                    ? "Cancelled"
-                                    : isFuture
-                                    ? "Upcoming"
-                                    : "Past"}
-                                </Tag>
+                                      ? "Upcoming"
+                                      : "Past"}
+                                  </Tag>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
                     </div>
 
-                    <div className="mt-4 text-sm text-gray-600 bg-blue-50 rounded-lg p-3">
+                    <div className="mt-3 text-xs text-gray-600 bg-blue-50 rounded-lg p-2">
                       <strong>Note:</strong> Only future scheduled dates can be
                       modified
                     </div>
@@ -1174,12 +1238,18 @@ const AmendmentForm = () => {
                     {amendmentAction && (
                       <div className="space-y-4 animate-fadeIn">
                         {amendmentAction == "CHANGE_DATE" &&
-                          selectedDates.length > 0 && (() => {
+                          selectedDates.length > 0 &&
+                          (() => {
                             // Sort selected dates chronologically
                             const sortedDatesWithIndex = selectedDates
-                              .map((date, originalIndex) => ({ date, originalIndex }))
-                              .sort((a, b) => dayjs(a.date).diff(dayjs(b.date)));
-                            
+                              .map((date, originalIndex) => ({
+                                date,
+                                originalIndex,
+                              }))
+                              .sort((a, b) =>
+                                dayjs(a.date).diff(dayjs(b.date))
+                              );
+
                             return (
                               <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200">
                                 <label className="block text-sm font-semibold text-gray-700 mb-3">
@@ -1188,54 +1258,68 @@ const AmendmentForm = () => {
                                   {selectedDates.length > 1 ? "s" : ""})
                                 </label>
                                 <div className="space-y-3">
-                                  {sortedDatesWithIndex.map(({ date: oldDate, originalIndex }) => (
-                                    <div
-                                      key={oldDate}
-                                      className="bg-white rounded-lg p-3 border border-blue-300"
-                                    >
-                                      <div className="flex items-center gap-3 mb-2">
-                                        <div className="flex-1">
-                                          <div className="text-xs text-gray-600 mb-1">
-                                            Replacing:{" "}
-                                            <span className="font-semibold text-gray-900">
-                                              {dayjs(oldDate).format(
+                                  {sortedDatesWithIndex.map(
+                                    ({ date: oldDate, originalIndex }) => (
+                                      <div
+                                        key={oldDate}
+                                        className="bg-white rounded-lg p-3 border border-blue-300"
+                                      >
+                                        <div className="flex items-center gap-3 mb-2">
+                                          <div className="flex-1">
+                                            <div className="text-xs text-gray-600 mb-1">
+                                              Replacing:{" "}
+                                              <span className="font-semibold text-gray-900">
+                                                {dayjs(oldDate).format(
+                                                  "DD MMM YYYY"
+                                                )}
+                                              </span>
+                                            </div>
+                                            <DatePicker
+                                              value={
+                                                newDates[originalIndex] || null
+                                              }
+                                              onChange={(date) =>
+                                                handleNewDateChange(
+                                                  date,
+                                                  originalIndex
+                                                )
+                                              }
+                                              format="DD MMM YYYY"
+                                              size="large"
+                                              className="w-full"
+                                              disabledDate={(current) => {
+                                                if (!current) return false;
+
+                                                const minDate =
+                                                  getMinAllowedDate();
+                                                const isPast = current.isBefore(
+                                                  minDate,
+                                                  "day"
+                                                );
+                                                const isBlocked =
+                                                  isDateBlocked(current);
+
+                                                return isPast || isBlocked;
+                                              }}
+                                              placeholder={`Select new date (from ${getMinAllowedDate().format(
                                                 "DD MMM YYYY"
-                                              )}
-                                            </span>
+                                              )})`}
+                                            />
                                           </div>
-                                          <DatePicker
-                                            value={newDates[originalIndex] || null}
-                                            onChange={(date) =>
-                                              handleNewDateChange(date, originalIndex)
-                                            }
-                                            format="DD MMM YYYY"
-                                            size="large"
-                                            className="w-full"
-                                            disabledDate={(current) => {
-                                              if (!current) return false;
-                                              
-                                              const minDate = getMinAllowedDate();
-                                              const isPast = current.isBefore(minDate, "day");
-                                              const isBlocked = isDateBlocked(current);
-                                              
-                                              return isPast || isBlocked;
-                                            }}
-                                            placeholder={`Select new date (from ${getMinAllowedDate().format(
-                                              "DD MMM YYYY"
-                                            )})`}
-                                          />
-                                        </div>
-                                        <div className="text-2xl text-blue-600">
-                                          <SwapOutlined />
+                                          <div className="text-2xl text-blue-600">
+                                            <SwapOutlined />
+                                          </div>
                                         </div>
                                       </div>
-                                    </div>
-                                  ))}
+                                    )
+                                  )}
                                 </div>
                                 <div className="mt-3 text-xs text-blue-700 bg-blue-100 rounded p-2">
                                   <strong>Note:</strong> New dates must be from{" "}
                                   {getMinAllowedDate().format("DD MMM YYYY")}{" "}
-                                  onwards. Already booked, cancelled dates for this car/slot and school holiday dates are disabled.
+                                  onwards. Already booked, cancelled dates for
+                                  this car/slot and school holiday dates are
+                                  disabled.
                                 </div>
                               </div>
                             );

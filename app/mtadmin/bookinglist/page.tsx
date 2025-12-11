@@ -35,22 +35,37 @@ const PaymentStatusCell = ({
   const remaining = totalAmount - totalPaid;
   const percentage = totalAmount > 0 ? Math.round((totalPaid / totalAmount) * 100) : 0;
 
-  // Check if urgent
+  // Check if urgent - bookings that have started and haven't paid full fees
   const { isUrgent, daysUntilEnd } = useMemo(() => {
     if (!booking.sessions || booking.sessions.length == 0) return { isUrgent: false, daysUntilEnd: 999 };
     
+    // Get first and last session dates
+    const firstSession = booking.sessions.reduce((earliest, session) => {
+      const sessionDate = new Date(session.sessionDate);
+      return sessionDate < earliest ? sessionDate : earliest;
+    }, new Date(booking.sessions[0].sessionDate));
+
     const lastSession = booking.sessions.reduce((latest, session) => {
       const sessionDate = new Date(session.sessionDate);
       return sessionDate > latest ? sessionDate : latest;
     }, new Date(0));
 
     const today = new Date();
-    const days = Math.ceil((lastSession.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    today.setHours(0, 0, 0, 0); // Reset to start of day for accurate comparison
+    
+    // Check if booking has started (first session has passed)
+    const hasStarted = firstSession.getTime() < today.getTime();
+    
+    // Calculate days since completion (negative if last session has passed)
+    const daysSinceCompletion = Math.ceil((lastSession.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    
+    // Check if payment is outstanding
     const hasOutstandingPayment = totalPaid < totalAmount;
     
-    const urgent = days <= 5 && days >= 0 && hasOutstandingPayment;
+    // Urgent if: started + outstanding payment
+    const urgent = hasStarted && hasOutstandingPayment;
     
-    return { isUrgent: urgent, daysUntilEnd: days };
+    return { isUrgent: urgent, daysUntilEnd: daysSinceCompletion };
   }, [booking.sessions, totalPaid, totalAmount]);
 
   // Notify parent component of urgency status
@@ -66,7 +81,10 @@ const PaymentStatusCell = ({
         <div className="flex items-center gap-1 mb-1">
           <WarningOutlined className="text-red-500" />
           <span className="text-xs text-red-600 font-semibold">
-            URGENT - {daysUntilEnd} day{daysUntilEnd !== 1 ? 's' : ''} left
+            {daysUntilEnd < 0 
+              ? `URGENT - Completed ${Math.abs(daysUntilEnd)} day${Math.abs(daysUntilEnd) !== 1 ? 's' : ''} ago`
+              : `URGENT - Course started, ${daysUntilEnd} day${daysUntilEnd !== 1 ? 's' : ''} left`
+            }
           </span>
         </div>
       )}
@@ -135,6 +153,12 @@ const BookingListPage = () => {
     if (!showUrgentOnly) return allBookings;
     return allBookings.filter(booking => urgentBookingIds.has(booking.id));
   }, [allBookings, showUrgentOnly, urgentBookingIds]);
+
+  // Calculate the correct total for pagination
+  const displayTotal = useMemo(() => {
+    if (!showUrgentOnly) return totalBookings;
+    return bookings.length;
+  }, [showUrgentOnly, totalBookings, bookings.length]);
 
   const columns: ColumnsType<Booking> = [
     {
@@ -306,7 +330,7 @@ const BookingListPage = () => {
             pagination={{
               current: currentPage,
               pageSize: pageSize,
-              total: totalBookings,
+              total: displayTotal,
               onChange: (page) => setCurrentPage(page),
               showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} bookings`,
               showSizeChanger: false,

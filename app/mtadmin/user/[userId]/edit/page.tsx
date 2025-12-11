@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, use } from "react";
-import { Card, Form, Input, Button, Select, DatePicker, Spin } from "antd";
+import { Card, Form, Input, Button, Select, DatePicker, Spin, Checkbox } from "antd";
 import {
   IcBaselineArrowBack,
   AntDesignCheckOutlined,
@@ -34,12 +34,24 @@ const EditUserPage = ({ params }: { params: Promise<{ userId: string }> }) => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
+  const [sameAsCurrentAddress, setSameAsCurrentAddress] = useState(false);
 
   // Unwrap params (Next.js 15+ async params)
   const { userId } = use(params);
 
   // Parse the numeric user ID from the URL parameter
   const numericUserId = parseInt(userId);
+
+  // Handle checkbox change to copy current address to permanent address
+  const handleSameAsCurrentAddress = (checked: boolean) => {
+    setSameAsCurrentAddress(checked);
+    if (checked) {
+      const currentAddress = form.getFieldValue("address");
+      form.setFieldValue("permanentAddress", currentAddress);
+    } else {
+      form.setFieldValue("permanentAddress", "");
+    }
+  };
 
   // Load existing user data
   useEffect(() => {
@@ -256,13 +268,24 @@ const EditUserPage = ({ params }: { params: Promise<{ userId: string }> }) => {
                   <TextArea rows={3} placeholder="Enter current address" />
                 </Form.Item>
 
-                <Form.Item
-                  label="Permanent Address (Optional)"
-                  name="permanentAddress"
-                  className="md:col-span-2"
-                >
-                  <TextArea rows={3} placeholder="Enter permanent address" />
-                </Form.Item>
+                <div className="md:col-span-2">
+                  <div className="mb-2">
+                    <Checkbox
+                      checked={sameAsCurrentAddress}
+                      onChange={(e) => handleSameAsCurrentAddress(e.target.checked)}
+                    >
+                      <span className="text-sm text-gray-700">
+                        Same as Current Address
+                      </span>
+                    </Checkbox>
+                  </div>
+                  <Form.Item
+                    label="Permanent Address (Optional)"
+                    name="permanentAddress"
+                  >
+                    <TextArea rows={3} placeholder="Enter permanent address" />
+                  </Form.Item>
+                </div>
               </div>
             </div>
 

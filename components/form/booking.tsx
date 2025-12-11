@@ -9,8 +9,10 @@ import { useState, useEffect } from "react";
 import { TextInput } from "./inputfields/textinput";
 import { TaxtAreaInput } from "./inputfields/textareainput";
 import { MultiSelect } from "./inputfields/multiselect";
-import { Modal, Button, Tag, Checkbox, Spin, Drawer, Input } from "antd";
+import { Modal, Button, Tag, Checkbox, Spin, Drawer, Input, Select } from "antd";
 import { getCookie } from "cookies-next";
+
+const { TextArea } = Input;
 import { getAllCarCourses, type CarCourse } from "@/services/carcourse.api";
 import {
   getAllSchoolServices,
@@ -169,6 +171,8 @@ const BookingForm = () => {
   const [pendingData, setPendingData] = useState<ExtendedBookingFormData | null>(null);
   const [selectedCourse, setSelectedCourse] = useState<FormCourse | null>(null);
   const [selectedServices, setSelectedServices] = useState<number[]>([]);
+  const [bookingDiscount, setBookingDiscount] = useState<number>(0);
+  const [serviceDiscount, setServiceDiscount] = useState<number>(0);
   const [customerData, setCustomerData] = useState<Customer | null>(null);
   const [bookingDate, setBookingDate] = useState<Dayjs | null>(
     dateFromUrl ? dayjs(dateFromUrl) : dayjs()
@@ -176,7 +180,16 @@ const BookingForm = () => {
   const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>([]);
   const [showCreateUserDrawer, setShowCreateUserDrawer] = useState(false);
   const [newUserName, setNewUserName] = useState("");
+  const [newUserSurname, setNewUserSurname] = useState("");
+  const [newUserFatherName, setNewUserFatherName] = useState("");
+  const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserContact, setNewUserContact] = useState("");
+  const [newUserContact2, setNewUserContact2] = useState("");
+  const [newUserAddress, setNewUserAddress] = useState("");
+  const [newUserPermanentAddress, setNewUserPermanentAddress] = useState("");
+  const [newUserBloodGroup, setNewUserBloodGroup] = useState<string | undefined>(undefined);
+  const [newUserDob, setNewUserDob] = useState<Dayjs | null>(null);
+  const [sameAsCurrentAddress, setSameAsCurrentAddress] = useState(false);
   const [creatingUser, setCreatingUser] = useState(false);
   const [dropdownSelectedCar, setDropdownSelectedCar] = useState<
     typeof selectedCarData | null
@@ -428,7 +441,7 @@ const BookingForm = () => {
           setValue("courseId", numericCourseId, { shouldValidate: false });
           setValue("courseName", course.name, { shouldValidate: false });
           setValue("coursePrice", course.price, { shouldValidate: false });
-          calculateTotal(course.price, selectedServices);
+          calculateTotal(course.price, selectedServices, bookingDiscount, serviceDiscount);
         }
       }
     } else if (numericCourseId == 0 && selectedCourse) {
@@ -620,14 +633,32 @@ const BookingForm = () => {
 
   // Mutation for creating new user
   const { mutate: createUser } = useMutation({
-    mutationFn: async (data: { name: string; contact1: string }) => {
+    mutationFn: async (data: {
+      name: string;
+      surname?: string;
+      fatherName?: string;
+      email?: string;
+      contact1: string;
+      contact2?: string;
+      address?: string;
+      permanentAddress?: string;
+      bloodGroup?: string;
+      dob?: Date;
+    }) => {
       return await ApiCall({
         query: `mutation CreateUser($inputType: CreateUserInput!) {
           createUser(inputType: $inputType) {
             id
             name
+            surname
+            fatherName
             contact1
+            contact2
             email
+            address
+            permanentAddress
+            bloodGroup
+            dob
             role
             status
           }
@@ -635,7 +666,15 @@ const BookingForm = () => {
         variables: {
           inputType: {
             name: data.name,
+            surname: data.surname,
+            fatherName: data.fatherName,
             contact1: data.contact1,
+            contact2: data.contact2,
+            email: data.email,
+            address: data.address,
+            permanentAddress: data.permanentAddress,
+            bloodGroup: data.bloodGroup,
+            dob: data.dob,
             role: "USER",
             status: "ACTIVE",
             schoolId: schoolId,
@@ -664,7 +703,16 @@ const BookingForm = () => {
         setValue("customerEmail", newUser.email || "");
         setShowCreateUserDrawer(false);
         setNewUserName("");
+        setNewUserSurname("");
+        setNewUserFatherName("");
+        setNewUserEmail("");
         setNewUserContact("");
+        setNewUserContact2("");
+        setNewUserAddress("");
+        setNewUserPermanentAddress("");
+        setNewUserBloodGroup(undefined);
+        setNewUserDob(null);
+        setSameAsCurrentAddress(false);
         toast.success("User created successfully!");
       } else {
         toast.error(response.message || "Failed to create user");
@@ -717,17 +765,23 @@ const BookingForm = () => {
     );
     setValue("selectedServices", servicesData);
 
-    calculateTotal(selectedCourse?.price || 0, newSelectedServices);
+    // Recalculate total with current discounts
+    calculateTotal(selectedCourse?.price || 0, newSelectedServices, bookingDiscount, serviceDiscount);
   };
 
   // Calculate total amount using addonPrice from schoolService
-  const calculateTotal = (coursePrice: number, serviceIds: number[]) => {
+  const calculateTotal = (coursePrice: number, serviceIds: number[], bookingDisc: number = 0, serviceDisc: number = 0) => {
     const servicesTotal = services
       .filter((s) => serviceIds.includes(s.id))
       .reduce((sum, service) => sum + service.addonPrice, 0);
 
-    const total = coursePrice + servicesTotal;
+    const subtotal = coursePrice + servicesTotal;
+    const totalDiscounts = bookingDisc + serviceDisc;
+    const total = Math.max(0, subtotal - totalDiscounts);
+    
     setValue("totalAmount", total);
+    setValue("bookingDiscount", bookingDisc);
+    setValue("serviceDiscount", serviceDisc);
   };
 
   // Calculate progress
@@ -953,6 +1007,7 @@ const BookingForm = () => {
             courseName: data.courseName,
             coursePrice: data.coursePrice,
             totalAmount: data.totalAmount,
+            discount: data.bookingDiscount || 0,
             notes: data.notes,
           },
         },
@@ -970,6 +1025,11 @@ const BookingForm = () => {
 
       // Create booking services if services are selected
       if (data.selectedServices && data.selectedServices.length > 0) {
+        // Calculate discount per service (divide equally)
+        const discountPerService = data.selectedServices.length > 0 
+          ? (data.serviceDiscount || 0) / data.selectedServices.length 
+          : 0;
+        
         const servicePromises = data.selectedServices.map((service) =>
           ApiCall({
             query: `mutation CreateBookingService($inputType: CreateBookingServiceInput!) {
@@ -986,6 +1046,7 @@ const BookingForm = () => {
                 serviceName: service.name,
                 serviceType: "ADDON", // BookingServiceType enum value
                 price: service.addonPrice, // Use addonPrice for addon services
+                discount: discountPerService,
                 description: service.description,
               },
             },
@@ -1204,6 +1265,14 @@ const BookingForm = () => {
                             </Tag>
                           </div>
                           <div className="space-y-1 text-sm text-gray-700">
+                            {selectedCarData.assignedDriver && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-500">👤</span>
+                                <span className="font-medium">
+                                  Driver: {selectedCarData.assignedDriver.name}
+                                </span>
+                              </div>
+                            )}
                             <div className="flex items-center gap-2">
                               <span className="text-gray-500">📋</span>
                               <span className="font-medium">
@@ -1257,7 +1326,7 @@ const BookingForm = () => {
                           required={true}
                           options={availableCars.map((car) => ({
                             value: car.id.toString(),
-                            label: `${car.carName} (${car.registrationNumber})`,
+                            label: `${car.carName} (${car.assignedDriver?.name || 'No Driver'})`,
                           }))}
                           disable={loadingCars || loadingCarDetails}
                         />
@@ -1658,6 +1727,88 @@ const BookingForm = () => {
                 )}
               </div>
 
+              {/* Discount Card */}
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+                <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                  <DollarOutlined className="text-green-600" />
+                  Discounts
+                  <Tag color="blue" className="ml-2">
+                    Optional
+                  </Tag>
+                </h2>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Booking Discount (₹)
+                    </label>
+                    <Input
+                      type="number"
+                      size="large"
+                      placeholder="Enter booking discount"
+                      min={0}
+                      value={bookingDiscount || ""}
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value) || 0;
+                        setBookingDiscount(value);
+                        calculateTotal(selectedCourse?.price || 0, selectedServices, value, serviceDiscount);
+                      }}
+                      prefix="₹"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Discount applied to the course booking
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Service Discount (₹)
+                    </label>
+                    <Input
+                      type="number"
+                      size="large"
+                      placeholder="Enter service discount"
+                      min={0}
+                      value={serviceDiscount || ""}
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value) || 0;
+                        setServiceDiscount(value);
+                        calculateTotal(selectedCourse?.price || 0, selectedServices, bookingDiscount, value);
+                      }}
+                      prefix="₹"
+                      disabled={selectedServices.length === 0}
+                    />
+                    {selectedServices.length > 0 ? (
+                      <p className="text-xs text-gray-500 mt-1">
+                        ₹{(serviceDiscount / selectedServices.length).toFixed(2)} per service ({selectedServices.length} selected)
+                      </p>
+                    ) : (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Please select services to apply discount
+                      </p>
+                    )}
+                  </div>
+
+                  {(bookingDiscount > 0 || serviceDiscount > 0) && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                      <p className="text-sm font-semibold text-green-800 mb-1">
+                        Total Discount: ₹{(bookingDiscount + serviceDiscount).toLocaleString("en-IN")}
+                      </p>
+                      {bookingDiscount > 0 && (
+                        <p className="text-xs text-green-700">
+                          • Booking: ₹{bookingDiscount.toLocaleString("en-IN")}
+                        </p>
+                      )}
+                      {serviceDiscount > 0 && selectedServices.length > 0 && (
+                        <p className="text-xs text-green-700">
+                          • Services: ₹{serviceDiscount.toLocaleString("en-IN")} (₹{(serviceDiscount / selectedServices.length).toFixed(2)} each)
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Notes Card */}
               <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
                 <h2 className="text-xl font-bold text-gray-900 mb-6">
@@ -1762,6 +1913,34 @@ const BookingForm = () => {
                     </div>
                   )}
 
+                  {/* Subtotal and Discounts */}
+                  {(bookingDiscount > 0 || serviceDiscount > 0) && (
+                    <div className="pb-4 border-b border-gray-200 space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Subtotal:</span>
+                        <span className="font-semibold text-gray-900">
+                          ₹{((selectedCourse?.price || 0) + services.filter(s => selectedServices.includes(s.id)).reduce((sum, s) => sum + s.addonPrice, 0)).toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                      {bookingDiscount > 0 && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-green-600">Booking Discount:</span>
+                          <span className="font-semibold text-green-600">
+                            -₹{bookingDiscount.toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                      )}
+                      {serviceDiscount > 0 && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-green-600">Service Discount:</span>
+                          <span className="font-semibold text-green-600">
+                            -₹{serviceDiscount.toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Total */}
                   <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-4 border-2 border-blue-200">
                     <div className="flex items-center justify-between mb-1">
@@ -1773,7 +1952,9 @@ const BookingForm = () => {
                       </span>
                     </div>
                     <p className="text-xs text-gray-600">
-                      Including all courses and services
+                      {(bookingDiscount > 0 || serviceDiscount > 0) 
+                        ? `After ₹${(bookingDiscount + serviceDiscount).toLocaleString("en-IN")} discount`
+                        : "Including all courses and services"}
                     </p>
                   </div>
 
@@ -1928,6 +2109,47 @@ const BookingForm = () => {
               </div>
             </div>
 
+            {/* Discount Information */}
+            {((pendingData.bookingDiscount && pendingData.bookingDiscount > 0) || 
+              (pendingData.serviceDiscount && pendingData.serviceDiscount > 0)) && (
+              <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                <h3 className="font-bold text-gray-900 mb-3">
+                  Discount Applied
+                </h3>
+                <div className="space-y-2">
+                  {pendingData.bookingDiscount && pendingData.bookingDiscount > 0 && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-700">Booking Discount:</span>
+                      <span className="text-green-600 font-semibold">
+                        -₹{pendingData.bookingDiscount.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  )}
+                  {pendingData.serviceDiscount && pendingData.serviceDiscount > 0 && pendingData.selectedServices && (
+                    <div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-700">Service Discount:</span>
+                        <span className="text-green-600 font-semibold">
+                          -₹{pendingData.serviceDiscount.toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-600 mt-1">
+                        ₹{(pendingData.serviceDiscount / pendingData.selectedServices.length).toFixed(2)} per service
+                      </p>
+                    </div>
+                  )}
+                  <div className="pt-2 border-t border-green-200">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-gray-900">Total Discount:</span>
+                      <span className="font-bold text-green-600">
+                        -₹{((pendingData.bookingDiscount || 0) + (pendingData.serviceDiscount || 0)).toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Show Calculated Booking Dates */}
             {pendingData.calculatedDates && pendingData.calculatedDates.length > 0 ? (
               <div className="bg-amber-50 rounded-lg p-4 border-2 border-amber-300">
@@ -1992,7 +2214,16 @@ const BookingForm = () => {
         onClose={() => {
           setShowCreateUserDrawer(false);
           setNewUserName("");
+          setNewUserSurname("");
+          setNewUserFatherName("");
+          setNewUserEmail("");
           setNewUserContact("");
+          setNewUserContact2("");
+          setNewUserAddress("");
+          setNewUserPermanentAddress("");
+          setNewUserBloodGroup(undefined);
+          setNewUserDob(null);
+          setSameAsCurrentAddress(false);
         }}
         open={showCreateUserDrawer}
         footer={
@@ -2003,7 +2234,16 @@ const BookingForm = () => {
               onClick={() => {
                 setShowCreateUserDrawer(false);
                 setNewUserName("");
+                setNewUserSurname("");
+                setNewUserFatherName("");
+                setNewUserEmail("");
                 setNewUserContact("");
+                setNewUserContact2("");
+                setNewUserAddress("");
+                setNewUserPermanentAddress("");
+                setNewUserBloodGroup(undefined);
+                setNewUserDob(null);
+                setSameAsCurrentAddress(false);
               }}
             >
               Cancel
@@ -2028,38 +2268,204 @@ const BookingForm = () => {
             </p>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Full Name <span className="text-red-500">*</span>
-            </label>
-            <Input
-              size="large"
-              placeholder="Enter full name"
-              value={newUserName}
-              onChange={(e) => setNewUserName(e.target.value)}
-              maxLength={100}
-            />
+          {/* Personal Information */}
+          <div className="border-b pb-4">
+            <h4 className="font-semibold text-gray-900 mb-3">Personal Information</h4>
+            
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Full Name <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  size="large"
+                  placeholder="Enter full name"
+                  value={newUserName}
+                  onChange={(e) => setNewUserName(e.target.value)}
+                  maxLength={100}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Surname (Optional)
+                </label>
+                <Input
+                  size="large"
+                  placeholder="Enter surname"
+                  value={newUserSurname}
+                  onChange={(e) => setNewUserSurname(e.target.value)}
+                  maxLength={100}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Father&apos;s Name (Optional)
+                </label>
+                <Input
+                  size="large"
+                  placeholder="Enter father's name"
+                  value={newUserFatherName}
+                  onChange={(e) => setNewUserFatherName(e.target.value)}
+                  maxLength={100}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email (Optional)
+                </label>
+                <Input
+                  size="large"
+                  type="email"
+                  placeholder="Enter email address"
+                  value={newUserEmail}
+                  onChange={(e) => setNewUserEmail(e.target.value)}
+                  maxLength={100}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Date of Birth (Optional)
+                </label>
+                <DatePicker
+                  size="large"
+                  className="w-full"
+                  placeholder="Select date of birth"
+                  format="DD/MM/YYYY"
+                  value={newUserDob}
+                  onChange={(date) => setNewUserDob(date)}
+                  maxDate={dayjs()}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Blood Group (Optional)
+                </label>
+                <Select
+                  size="large"
+                  className="w-full"
+                  placeholder="Select blood group"
+                  value={newUserBloodGroup}
+                  onChange={(value) => setNewUserBloodGroup(value)}
+                  allowClear
+                  options={[
+                    { label: "A+", value: "A+" },
+                    { label: "A-", value: "A-" },
+                    { label: "B+", value: "B+" },
+                    { label: "B-", value: "B-" },
+                    { label: "AB+", value: "AB+" },
+                    { label: "AB-", value: "AB-" },
+                    { label: "O+", value: "O+" },
+                    { label: "O-", value: "O-" },
+                  ]}
+                />
+              </div>
+            </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Contact Number <span className="text-red-500">*</span>
-            </label>
-            <Input
-              size="large"
-              placeholder="Enter 10-digit mobile number"
-              value={newUserContact}
-              onChange={(e) => {
-                const value = e.target.value.replace(/\D/g, "");
-                setNewUserContact(value);
-              }}
-              maxLength={10}
-              disabled
-            />
+          {/* Contact Information */}
+          <div className="border-b pb-4">
+            <h4 className="font-semibold text-gray-900 mb-3">Contact Information</h4>
+            
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Primary Contact <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  size="large"
+                  placeholder="Enter 10-digit mobile number"
+                  value={newUserContact}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, "");
+                    setNewUserContact(value);
+                  }}
+                  maxLength={10}
+                  disabled
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Secondary Contact (Optional)
+                </label>
+                <Input
+                  size="large"
+                  placeholder="Enter 10-digit alternate mobile number"
+                  value={newUserContact2}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, "");
+                    setNewUserContact2(value);
+                  }}
+                  maxLength={10}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Address Information */}
+          <div className="border-b pb-4">
+            <h4 className="font-semibold text-gray-900 mb-3">Address Information</h4>
+            
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Current Address (Optional)
+                </label>
+                <TextArea
+                  rows={3}
+                  placeholder="Enter current address"
+                  value={newUserAddress}
+                  onChange={(e) => {
+                    setNewUserAddress(e.target.value);
+                    if (sameAsCurrentAddress) {
+                      setNewUserPermanentAddress(e.target.value);
+                    }
+                  }}
+                  maxLength={500}
+                />
+              </div>
+
+              <div>
+                <Checkbox
+                  checked={sameAsCurrentAddress}
+                  onChange={(e) => {
+                    setSameAsCurrentAddress(e.target.checked);
+                    if (e.target.checked) {
+                      setNewUserPermanentAddress(newUserAddress);
+                    } else {
+                      setNewUserPermanentAddress("");
+                    }
+                  }}
+                >
+                  <span className="text-sm text-gray-700">
+                    Same as Current Address
+                  </span>
+                </Checkbox>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Permanent Address (Optional)
+                </label>
+                <TextArea
+                  rows={3}
+                  placeholder="Enter permanent address"
+                  value={newUserPermanentAddress}
+                  onChange={(e) => setNewUserPermanentAddress(e.target.value)}
+                  maxLength={500}
+                  disabled={sameAsCurrentAddress}
+                />
+              </div>
+            </div>
           </div>
 
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h4 className="font-semibold text-blue-900 mb-2">User Details</h4>
+            <h4 className="font-semibold text-blue-900 mb-2">Account Details</h4>
             <ul className="text-sm text-blue-800 space-y-1">
               <li>
                 • <strong>Role:</strong> USER
