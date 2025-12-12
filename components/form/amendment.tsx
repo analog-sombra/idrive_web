@@ -375,21 +375,64 @@ const AmendmentForm = () => {
     const isSelected = selectedDates.includes(date);
 
     if (isSelected) {
-      setSelectedDates(selectedDates.filter((d) => d !== date));
-      setSelectedSessionIds(
-        selectedSessionIds.filter((id) => id !== sessionId)
-      );
-    } else {
-      setSelectedDates([...selectedDates, date]);
-      setSelectedSessionIds([...selectedSessionIds, sessionId]);
-    }
+      // For CANCEL_BOOKING, when unselecting, clear all and reselect from this date onwards
+      if (amendmentAction == "CANCEL_BOOKING" && selectedBooking?.sessions) {
+        const clickedDate = dayjs.utc(date);
+        const futureSessions = selectedBooking.sessions.filter((session) => {
+          const sessionDate = dayjs.utc(session.sessionDate);
+          return (
+            (sessionDate.isAfter(clickedDate) ||
+              sessionDate.isSame(clickedDate, "day")) &&
+            session.status !== "COMPLETED" &&
+            session.status !== "CANCELLED"
+          );
+        });
 
-    setValue(
-      "selectedDates",
-      isSelected
-        ? selectedDates.filter((d) => d !== date)
-        : [...selectedDates, date]
-    );
+        const futureDates = futureSessions.map((s) =>
+          dayjs.utc(s.sessionDate).format("YYYY-MM-DD")
+        );
+        const futureSessionIds = futureSessions.map((s) => s.id);
+
+        setSelectedDates(futureDates);
+        setSelectedSessionIds(futureSessionIds);
+        setValue("selectedDates", futureDates);
+      } else {
+        // For other actions, just unselect the single date
+        setSelectedDates(selectedDates.filter((d) => d !== date));
+        setSelectedSessionIds(
+          selectedSessionIds.filter((id) => id !== sessionId)
+        );
+        setValue("selectedDates", selectedDates.filter((d) => d !== date));
+      }
+    } else {
+      // For CANCEL_BOOKING, select clicked date and all dates after it
+      if (amendmentAction == "CANCEL_BOOKING" && selectedBooking?.sessions) {
+        const clickedDate = dayjs.utc(date);
+        const futureSessions = selectedBooking.sessions.filter((session) => {
+          const sessionDate = dayjs.utc(session.sessionDate);
+          return (
+            (sessionDate.isAfter(clickedDate) ||
+              sessionDate.isSame(clickedDate, "day")) &&
+            session.status !== "COMPLETED" &&
+            session.status !== "CANCELLED"
+          );
+        });
+
+        const futureDates = futureSessions.map((s) =>
+          dayjs.utc(s.sessionDate).format("YYYY-MM-DD")
+        );
+        const futureSessionIds = futureSessions.map((s) => s.id);
+
+        setSelectedDates(futureDates);
+        setSelectedSessionIds(futureSessionIds);
+        setValue("selectedDates", futureDates);
+      } else {
+        // For other actions, just toggle the single date
+        setSelectedDates([...selectedDates, date]);
+        setSelectedSessionIds([...selectedSessionIds, sessionId]);
+        setValue("selectedDates", [...selectedDates, date]);
+      }
+    }
   };
 
   // Handle action change
@@ -530,7 +573,11 @@ const AmendmentForm = () => {
       errors.push("Please select at least one date to cancel");
     }
 
-    if (amendmentAction == "CHANGE_DATE") {
+    if (
+      amendmentAction == "CHANGE_DATE" ||
+      amendmentAction == "CAR_BREAKDOWN" ||
+      amendmentAction == "RELEASE_HOLD"
+    ) {
       if (selectedDates.length == 0) {
         errors.push("Please select dates to change");
       }
@@ -579,11 +626,7 @@ const AmendmentForm = () => {
       const promises = [];
 
       // Handle different amendment actions
-      if (
-        amendmentAction == "CANCEL_BOOKING" ||
-        amendmentAction == "CAR_BREAKDOWN" ||
-        amendmentAction == "CAR_HOLIDAY"
-      ) {
+      if (amendmentAction == "CANCEL_BOOKING") {
         // Cancel selected sessions - set status to CANCELLED and deletedAt
         for (const sessionId of selectedSessionIds) {
           promises.push(
@@ -598,7 +641,6 @@ const AmendmentForm = () => {
               variables: {
                 id: sessionId,
                 updateType: {
-                  id: sessionId,
                   status: "CANCELLED",
                   deletedAt: new Date().toISOString(),
                   internalNotes: formValues.reason,
@@ -607,6 +649,106 @@ const AmendmentForm = () => {
             })
           );
         }
+      } else if (amendmentAction == "CAR_HOLIDAY") {
+        // Set selected sessions to HOLD status for car holidays
+        for (const sessionId of selectedSessionIds) {
+          promises.push(
+            ApiCall({
+              query: `mutation UpdateBookingSession($updateType: UpdateBookingSessionInput!, $id: Int!) {
+                updateBookingSession(updateType: $updateType, id: $id) {
+                  id
+                  status
+                }
+              }`,
+              variables: {
+                id: sessionId,
+                updateType: {
+                  status: "HOLD",
+                  internalNotes: formValues.reason,
+                },
+              },
+            })
+          );
+        }
+      } else if (
+        amendmentAction == "CAR_BREAKDOWN" &&
+        newDates.length == selectedSessionIds.length
+      ) {
+        // For car breakdown: Mark old sessions as CANCELLED and create new sessions with same car
+        const updatePromises = [];
+
+        for (let i = 0; i < selectedSessionIds.length; i++) {
+          const sessionId = selectedSessionIds[i];
+
+          // Update the old session to CANCELLED with deletedAt
+          updatePromises.push(
+            ApiCall({
+              query: `mutation UpdateBookingSession($updateType: UpdateBookingSessionInput!, $id: Int!) {
+                updateBookingSession(updateType: $updateType, id: $id) {
+                  id
+                  status
+                  deletedAt
+                }
+              }`,
+              variables: {
+                id: sessionId,
+                updateType: {
+                  status: "CANCELLED",
+                  deletedAt: new Date().toISOString(),
+                  internalNotes: `Car breakdown - ${formValues.reason}`,
+                },
+              },
+            })
+          );
+        }
+
+        // Get old sessions data
+        const oldSessions =
+          selectedBooking.sessions?.filter((s) =>
+            selectedSessionIds.includes(s.id)
+          ) || [];
+
+        const createPromises = [];
+
+        // Create new sessions with new car and new dates
+        for (let i = 0; i < newDates.length; i++) {
+          const newDate = newDates[i];
+          const oldSession = oldSessions[i];
+
+          if (oldSession) {
+            createPromises.push(
+              ApiCall({
+                query: `mutation CreateBookingSession($inputType: CreateBookingSessionInput!) {
+                  createBookingSession(inputType: $inputType) {
+                    id
+                    sessionDate
+                    status
+                  }
+                }`,
+                variables: {
+                  inputType: {
+                    bookingId: selectedBooking.id,
+                    dayNumber: oldSession.dayNumber,
+                    sessionDate: newDate.format("YYYY-MM-DD"),
+                    slot: oldSession.slot,
+                    carId: oldSession.carId,
+                    driverId: oldSession.driverId,
+                    status: "PENDING",
+                    internalNotes: `Car breakdown - Rescheduled from ${dayjs
+                      .utc(oldSession.sessionDate)
+                      .format("DD MMM YYYY")} - ${formValues.reason}`,
+                  },
+                },
+              })
+            );
+          }
+        }
+
+        // Wait for all new sessions to be created
+        await Promise.all(createPromises);
+
+        // Return combined results
+        return [...updatePromises, ...createPromises];
       } else if (
         amendmentAction == "CHANGE_DATE" &&
         newDates.length == selectedSessionIds.length
@@ -630,7 +772,6 @@ const AmendmentForm = () => {
               variables: {
                 id: sessionId,
                 updateType: {
-                  id: sessionId,
                   status: "CANCELLED",
                   deletedAt: new Date().toISOString(),
                   internalNotes: `Date changed - ${formValues.reason}`,
@@ -689,6 +830,85 @@ const AmendmentForm = () => {
 
         // Return combined results
         return [...updatePromises, ...createPromises];
+      } else if (
+        amendmentAction == "RELEASE_HOLD" &&
+        newDates.length == selectedSessionIds.length
+      ) {
+        // For release hold: Mark old HOLD sessions as CANCELLED and create new sessions
+        const updatePromises = [];
+
+        for (let i = 0; i < selectedSessionIds.length; i++) {
+          const sessionId = selectedSessionIds[i];
+
+          // Update the old HOLD session to CANCELLED with deletedAt
+          updatePromises.push(
+            ApiCall({
+              query: `mutation UpdateBookingSession($updateType: UpdateBookingSessionInput!, $id: Int!) {
+                updateBookingSession(updateType: $updateType, id: $id) {
+                  id
+                  status
+                  deletedAt
+                }
+              }`,
+              variables: {
+                id: sessionId,
+                updateType: {
+                  id: sessionId,
+                  status: "CANCELLED",
+                  deletedAt: new Date().toISOString(),
+                  internalNotes: `Hold released - ${formValues.reason}`,
+                },
+              },
+            })
+          );
+        }
+
+        // Then create new sessions for the new dates
+        const oldSessions =
+          selectedBooking.sessions?.filter((s) =>
+            selectedSessionIds.includes(s.id)
+          ) || [];
+
+        const createPromises = [];
+
+        for (let i = 0; i < newDates.length; i++) {
+          const newDate = newDates[i];
+          const oldSession = oldSessions[i];
+
+          if (oldSession) {
+            createPromises.push(
+              ApiCall({
+                query: `mutation CreateBookingSession($inputType: CreateBookingSessionInput!) {
+                  createBookingSession(inputType: $inputType) {
+                    id
+                    sessionDate
+                    status
+                  }
+                }`,
+                variables: {
+                  inputType: {
+                    bookingId: selectedBooking.id,
+                    dayNumber: oldSession.dayNumber,
+                    sessionDate: newDate.format("YYYY-MM-DD"),
+                    slot: oldSession.slot,
+                    carId: oldSession.carId,
+                    driverId: oldSession.driverId,
+                    status: "PENDING",
+                    internalNotes: `Released from hold - Rescheduled from ${dayjs
+                      .utc(oldSession.sessionDate)
+                      .format("DD MMM YYYY")} - ${formValues.reason}`,
+                  },
+                },
+              })
+            );
+          }
+        }
+
+        // Wait for all new sessions to be created
+        await Promise.all(createPromises);
+
+        // Return combined results
+        return [...updatePromises, ...createPromises];
       }
 
       return await Promise.all(promises);
@@ -726,6 +946,7 @@ const AmendmentForm = () => {
     CHANGE_DATE: <SwapOutlined className="text-blue-600" />,
     CAR_BREAKDOWN: <ToolOutlined className="text-orange-600" />,
     CAR_HOLIDAY: <StopOutlined className="text-purple-600" />,
+    RELEASE_HOLD: <CalendarOutlined className="text-green-600" />,
   };
 
   const actionColors = {
@@ -733,6 +954,7 @@ const AmendmentForm = () => {
     CHANGE_DATE: "blue",
     CAR_BREAKDOWN: "orange",
     CAR_HOLIDAY: "purple",
+    RELEASE_HOLD: "green",
   };
 
   return (
@@ -1076,9 +1298,11 @@ const AmendmentForm = () => {
                           const isSelected =
                             selectedDates.includes(sessionDate);
                           const isDisabled =
-                            (session.status !== "PENDING" &&
-                              session.status !== "CONFIRMED") ||
-                            !isFuture;
+                            amendmentAction == "RELEASE_HOLD"
+                              ? session.status !== "HOLD"
+                              : (session.status !== "PENDING" &&
+                                  session.status !== "CONFIRMED") ||
+                                !isFuture;
 
                           return (
                             <div
@@ -1123,6 +1347,8 @@ const AmendmentForm = () => {
                                         ? "success"
                                         : session.status == "CANCELLED"
                                         ? "error"
+                                        : session.status == "HOLD"
+                                        ? "warning"
                                         : isFuture
                                         ? "processing"
                                         : "default"
@@ -1133,6 +1359,8 @@ const AmendmentForm = () => {
                                       ? "Done"
                                       : session.status == "CANCELLED"
                                       ? "Cancelled"
+                                      : session.status == "HOLD"
+                                      ? "Hold"
                                       : isFuture
                                       ? "Upcoming"
                                       : "Past"}
@@ -1233,6 +1461,29 @@ const AmendmentForm = () => {
                           Mark car as unavailable for holiday
                         </p>
                       </div>
+
+                      {selectedBooking?.sessions?.some(
+                        (s) => s.status == "HOLD"
+                      ) && (
+                        <div
+                          className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                            amendmentAction == "RELEASE_HOLD"
+                              ? "border-green-500 bg-green-50"
+                              : "border-gray-300 hover:border-green-400"
+                          }`}
+                          onClick={() => handleActionChange("RELEASE_HOLD")}
+                        >
+                          <div className="flex items-center gap-3 mb-2">
+                            <CalendarOutlined className="text-2xl text-green-600" />
+                            <span className="font-bold text-gray-900">
+                              Release Hold
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-600">
+                            Reschedule held sessions to new dates
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     {amendmentAction && (
@@ -1325,6 +1576,152 @@ const AmendmentForm = () => {
                             );
                           })()}
 
+                        {amendmentAction == "CAR_BREAKDOWN" &&
+                          selectedDates.length > 0 &&
+                          (() => {
+                            // Sort selected dates chronologically
+                            const sortedDatesWithIndex = selectedDates
+                              .map((date, originalIndex) => ({
+                                date,
+                                originalIndex,
+                              }))
+                              .sort((a, b) =>
+                                dayjs(a.date).diff(dayjs(b.date))
+                              );
+
+                            return (
+                              <div className="bg-orange-50 rounded-lg p-4 border-2 border-orange-200">
+                                <label className="block text-sm font-semibold text-gray-700 mb-3">
+                                  New Dates (Select {selectedDates.length}{" "}
+                                  replacement date
+                                  {selectedDates.length > 1 ? "s" : ""})
+                                </label>
+                                <div className="space-y-3">
+                                  {sortedDatesWithIndex.map(
+                                    ({ date: oldDate, originalIndex }) => (
+                                      <div
+                                        key={oldDate}
+                                        className="bg-white rounded-lg p-3 border border-orange-300"
+                                      >
+                                        <div className="flex items-center gap-3 mb-2">
+                                          <div className="flex-1">
+                                            <div className="text-xs text-gray-600 mb-1">
+                                              Replacing:{" "}
+                                              <span className="font-semibold text-gray-900">
+                                                {dayjs(oldDate).format(
+                                                  "DD MMM YYYY"
+                                                )}
+                                              </span>
+                                            </div>
+                                            <DatePicker
+                                              value={
+                                                newDates[originalIndex] || null
+                                              }
+                                              onChange={(date) =>
+                                                handleNewDateChange(
+                                                  date,
+                                                  originalIndex
+                                                )
+                                              }
+                                              format="DD MMM YYYY"
+                                              size="large"
+                                              className="w-full"
+                                              disabledDate={(current) =>
+                                                isDateBlocked(current)
+                                              }
+                                              minDate={getMinAllowedDate()}
+                                              placeholder="Select new date"
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )
+                                  )}
+                                </div>
+                                <div className="mt-3 text-xs text-gray-600 bg-white rounded p-2 border border-orange-200">
+                                  📅 You can only select dates from{" "}
+                                  {getMinAllowedDate().format("DD MMM YYYY")}{" "}
+                                  onwards. Already booked, cancelled dates for
+                                  this car/slot and school holiday dates are
+                                  disabled.
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                        {amendmentAction == "RELEASE_HOLD" &&
+                          selectedDates.length > 0 &&
+                          (() => {
+                            // Sort selected dates chronologically
+                            const sortedDatesWithIndex = selectedDates
+                              .map((date, originalIndex) => ({
+                                date,
+                                originalIndex,
+                              }))
+                              .sort((a, b) =>
+                                dayjs(a.date).diff(dayjs(b.date))
+                              );
+
+                            return (
+                              <div className="bg-green-50 rounded-lg p-4 border-2 border-green-200">
+                                <label className="block text-sm font-semibold text-gray-700 mb-3">
+                                  New Dates (Select {selectedDates.length}{" "}
+                                  replacement date
+                                  {selectedDates.length > 1 ? "s" : ""})
+                                </label>
+                                <div className="space-y-3">
+                                  {sortedDatesWithIndex.map(
+                                    ({ date: oldDate, originalIndex }) => (
+                                      <div
+                                        key={oldDate}
+                                        className="bg-white rounded-lg p-3 border border-green-300"
+                                      >
+                                        <div className="flex items-center gap-3 mb-2">
+                                          <div className="flex-1">
+                                            <div className="text-xs text-gray-600 mb-1">
+                                              Replacing:{" "}
+                                              <span className="font-semibold text-gray-900">
+                                                {dayjs(oldDate).format(
+                                                  "DD MMM YYYY"
+                                                )}
+                                              </span>
+                                            </div>
+                                            <DatePicker
+                                              value={
+                                                newDates[originalIndex] || null
+                                              }
+                                              onChange={(date) =>
+                                                handleNewDateChange(
+                                                  date,
+                                                  originalIndex
+                                                )
+                                              }
+                                              format="DD MMM YYYY"
+                                              size="large"
+                                              className="w-full"
+                                              disabledDate={(current) =>
+                                                isDateBlocked(current)
+                                              }
+                                              minDate={getMinAllowedDate()}
+                                              placeholder="Select new date"
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )
+                                  )}
+                                </div>
+                                <div className="mt-3 text-xs text-gray-600 bg-white rounded p-2 border border-green-200">
+                                  📅 You can only select dates from{" "}
+                                  {getMinAllowedDate().format("DD MMM YYYY")}{" "}
+                                  onwards. Already booked, cancelled dates for
+                                  this car/slot and school holiday dates are
+                                  disabled.
+                                </div>
+                              </div>
+                            );
+                          })()}
+
                         <div>
                           <TaxtAreaInput
                             name="reason"
@@ -1361,7 +1758,9 @@ const AmendmentForm = () => {
                           disabled={
                             selectedDates.length == 0 ||
                             !formValues.reason ||
-                            (amendmentAction == "CHANGE_DATE" &&
+                            ((amendmentAction == "CHANGE_DATE" ||
+                              amendmentAction == "CAR_BREAKDOWN" ||
+                              amendmentAction == "RELEASE_HOLD") &&
                               newDates.length !== selectedDates.length)
                           }
                           danger={amendmentAction == "CANCEL_BOOKING"}
@@ -1479,6 +1878,70 @@ const AmendmentForm = () => {
                         </span>
                       </div>
                       <SwapOutlined className="text-blue-600" />
+                      <div>
+                        <span className="text-gray-600">New: </span>
+                        <span className="font-semibold text-green-600">
+                          {newDates[index]
+                            ? newDates[index].format("DD MMM YYYY")
+                            : "Not selected"}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {amendmentAction == "CAR_BREAKDOWN" && newDates.length > 0 && (
+              <div className="bg-orange-50 rounded-lg p-4 border border-orange-200">
+                <h3 className="font-bold text-gray-900 mb-3">
+                  Car Breakdown - Date Changes
+                </h3>
+                <div className="space-y-2">
+                  {selectedDates.map((oldDate, index) => (
+                    <div
+                      key={oldDate}
+                      className="flex items-center justify-between text-sm bg-white rounded p-2 border border-orange-300"
+                    >
+                      <div>
+                        <span className="text-gray-600">Old: </span>
+                        <span className="font-semibold text-red-600">
+                          {dayjs(oldDate).format("DD MMM YYYY")}
+                        </span>
+                      </div>
+                      <SwapOutlined className="text-orange-600" />
+                      <div>
+                        <span className="text-gray-600">New: </span>
+                        <span className="font-semibold text-green-600">
+                          {newDates[index]
+                            ? newDates[index].format("DD MMM YYYY")
+                            : "Not selected"}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {amendmentAction == "RELEASE_HOLD" && newDates.length > 0 && (
+              <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                <h3 className="font-bold text-gray-900 mb-3">
+                  Release Hold - Date Changes
+                </h3>
+                <div className="space-y-2">
+                  {selectedDates.map((oldDate, index) => (
+                    <div
+                      key={oldDate}
+                      className="flex items-center justify-between text-sm bg-white rounded p-2 border border-green-300"
+                    >
+                      <div>
+                        <span className="text-gray-600">Old: </span>
+                        <span className="font-semibold text-red-600">
+                          {dayjs(oldDate).format("DD MMM YYYY")}
+                        </span>
+                      </div>
+                      <SwapOutlined className="text-green-600" />
                       <div>
                         <span className="text-gray-600">New: </span>
                         <span className="font-semibold text-green-600">

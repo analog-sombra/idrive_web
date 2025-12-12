@@ -5,7 +5,8 @@ export type AmendmentAction =
   | "CANCEL_BOOKING" 
   | "CHANGE_DATE" 
   | "CAR_BREAKDOWN" 
-  | "CAR_HOLIDAY";
+  | "CAR_HOLIDAY"
+  | "RELEASE_HOLD";
 
 // Search method
 export type SearchMethod = "mobile" | "bookingId";
@@ -23,7 +24,7 @@ export const AmendmentSchema = v.object({
     v.minLength(1, "Please enter a booking ID")
   )),
   selectedBookingId: v.optional(v.string()),
-  amendmentAction: v.optional(v.picklist(["CANCEL_BOOKING", "CHANGE_DATE", "CAR_BREAKDOWN", "CAR_HOLIDAY"] as const)),
+  amendmentAction: v.optional(v.picklist(["CANCEL_BOOKING", "CHANGE_DATE", "CAR_BREAKDOWN", "CAR_HOLIDAY", "RELEASE_HOLD"] as const)),
   selectedDates: v.optional(v.array(v.string())),
   newDate: v.optional(v.string()),
   reason: v.optional(v.string()),
