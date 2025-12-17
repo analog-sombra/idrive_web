@@ -35,6 +35,7 @@ import {
 import { PaymentSchema, type PaymentFormData } from "@/schema/payment";
 import { getCookie } from "cookies-next";
 import { toast } from "react-toastify";
+import { convertSlotTo12Hour } from "@/utils/time-format";
 
 const BookingDetailsPage = () => {
   const router = useRouter();
@@ -191,7 +192,7 @@ const BookingDetailsPage = () => {
             {booking.courseName}
           </Descriptions.Item>
           <Descriptions.Item label="Car">{booking.carName}</Descriptions.Item>
-          <Descriptions.Item label="Slot">{booking.slot}</Descriptions.Item>
+          <Descriptions.Item label="Slot">{convertSlotTo12Hour(booking.slot)}</Descriptions.Item>
           <Descriptions.Item label="Booking Date">
             {new Date(booking.bookingDate).toLocaleDateString("en-IN")}
           </Descriptions.Item>
@@ -222,7 +223,7 @@ const BookingDetailsPage = () => {
               width: 130,
               render: (date) => new Date(date).toLocaleDateString("en-IN"),
             },
-            { title: "Slot", dataIndex: "slot", key: "slot", width: 110 },
+            { title: "Slot", dataIndex: "slot", key: "slot", width: 110, render: (slot: string) => convertSlotTo12Hour(slot) },
             { title: "Car", dataIndex: "carId", key: "carId", width: 100 },
             {
               title: "Driver",

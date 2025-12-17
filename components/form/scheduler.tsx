@@ -31,6 +31,7 @@ import { getPaginatedCars } from "@/services/car.api";
 import { getSchoolById } from "@/services/school.api";
 import { getCookie } from "cookies-next";
 import { ApiCall } from "@/services/api";
+import { convertSlotTo12Hour } from "@/utils/time-format";
 
 dayjs.extend(isSameOrAfter);
 dayjs.extend(isSameOrBefore);
@@ -811,7 +812,7 @@ const CarScheduler = () => {
       title: (
         <div className="text-center py-1">
           <div className="font-bold text-base">
-            {slot.split("-")[0]} {parseInt(slot) < 12 ? "AM" : "PM"}
+            {convertSlotTo12Hour(slot)}
           </div>
         </div>
       ),

@@ -35,6 +35,7 @@ import {
 import { getUserById, type User } from "@/services/user.api";
 import { getSchoolById, type School } from "@/services/school.api";
 import { getCookie } from "cookies-next";
+import { convertSlotTo12Hour } from "@/utils/time-format";
 import dayjs from "dayjs";
 import { JSX } from "react";
 
@@ -162,6 +163,7 @@ const CustomerPage = () => {
       title: "Time Slot",
       dataIndex: "slot",
       key: "slot",
+      render: (slot: string) => convertSlotTo12Hour(slot),
     },
     {
       title: "Driver",

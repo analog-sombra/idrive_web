@@ -84,9 +84,10 @@ const HolidayDeclarationPage = () => {
       const startTime = `${hour.toString().padStart(2, "0")}:00`;
       const endTime = `${(hour + 1).toString().padStart(2, "0")}:00`;
       const slotValue = `${startTime}-${endTime}`;
+      const slotLabel = `${convert24To12Hour(startTime)} - ${convert24To12Hour(endTime)}`;
       slots.push({
         value: slotValue,
-        label: slotValue,
+        label: slotLabel,
       });
     }
     return slots;

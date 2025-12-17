@@ -11,6 +11,7 @@ import { TaxtAreaInput } from "./inputfields/textareainput";
 import { MultiSelect } from "./inputfields/multiselect";
 import { Modal, Button, Tag, Checkbox, Spin, Drawer, Input, Select } from "antd";
 import { getCookie } from "cookies-next";
+import { convertSlotTo12Hour } from "@/utils/time-format";
 
 const { TextArea } = Input;
 import { getAllCarCourses, type CarCourse } from "@/services/carcourse.api";
@@ -51,6 +52,7 @@ type FormCourse = {
   id: number;
   name: string;
   price: number;
+  automaticPrice?: number;
   courseType: string;
   courseDays: number;
   minsPerDay: number;
@@ -174,6 +176,7 @@ const BookingForm = () => {
   const [selectedServices, setSelectedServices] = useState<number[]>([]);
   const [bookingDiscount, setBookingDiscount] = useState<number>(0);
   const [serviceDiscount, setServiceDiscount] = useState<number>(0);
+  const [advanceAmount, setAdvanceAmount] = useState<number>(0);
   const [customerData, setCustomerData] = useState<Customer | null>(null);
   const [bookingDate, setBookingDate] = useState<Dayjs | null>(
     dateFromUrl ? dayjs(dateFromUrl) : dayjs()
@@ -198,6 +201,7 @@ const BookingForm = () => {
 
   // Get school ID from cookie
   const schoolId: number = parseInt(getCookie("school")?.toString() || "0");
+  const userId: number = parseInt(getCookie("id")?.toString() || "0");
 
   // Parse carId as number if provided
   const numericCarId = carIdFromUrl ? parseInt(carIdFromUrl) : null;
@@ -348,6 +352,7 @@ const BookingForm = () => {
       services: [],
       selectedServices: [],
       totalAmount: 0,
+      advanceAmount: 0,
       notes: "",
     },
   });
@@ -395,6 +400,7 @@ const BookingForm = () => {
     id: course.id,
     name: course.courseName,
     price: course.price,
+    automaticPrice: course.automaticPrice,
     courseType: course.courseType,
     courseDays: course.courseDays,
     minsPerDay: course.minsPerDay,
@@ -441,8 +447,16 @@ const BookingForm = () => {
           // Update form with numeric value
           setValue("courseId", numericCourseId, { shouldValidate: false });
           setValue("courseName", course.name, { shouldValidate: false });
-          setValue("coursePrice", course.price, { shouldValidate: false });
-          calculateTotal(course.price, selectedServices, bookingDiscount, serviceDiscount);
+          
+          // Determine which car data to use
+          const carData = numericCarId ? selectedCarData : dropdownSelectedCar;
+          
+          // Use automatic price if car has automatic transmission, otherwise use manual price
+          const isAutomatic = carData?.transmission === "AUTOMATIC" || carData?.transmission === "AMT" || carData?.transmission === "CVT";
+          const priceToUse = (isAutomatic && course.automaticPrice) ? course.automaticPrice : course.price;
+          
+          setValue("coursePrice", priceToUse, { shouldValidate: false });
+          calculateTotal(priceToUse, selectedServices, bookingDiscount, serviceDiscount);
         }
       }
     } else if (numericCourseId == 0 && selectedCourse) {
@@ -450,6 +464,25 @@ const BookingForm = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watchedCourseId]);
+
+  // Update price when car or course changes (reactive price update)
+  useEffect(() => {
+    // Only update if both course and car are selected
+    if (selectedCourse && (selectedCarData || dropdownSelectedCar)) {
+      const carData = numericCarId ? selectedCarData : dropdownSelectedCar;
+      
+      // Use automatic price if car has automatic transmission, otherwise use manual price
+      const isAutomatic = carData?.transmission === "AUTOMATIC" || carData?.transmission === "AMT" || carData?.transmission === "CVT";
+      const priceToUse = (isAutomatic && selectedCourse.automaticPrice) ? selectedCourse.automaticPrice : selectedCourse.price;
+      
+      // Only update if price has actually changed
+      if (formValues.coursePrice !== priceToUse) {
+        setValue("coursePrice", priceToUse, { shouldValidate: false });
+        calculateTotal(priceToUse, selectedServices, bookingDiscount, serviceDiscount);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCarData, dropdownSelectedCar, selectedCourse]);
 
   // Generate time slots based on school timings and filter by availability
   // This prevents double booking by locking already booked date and time slots
@@ -766,8 +799,8 @@ const BookingForm = () => {
     );
     setValue("selectedServices", servicesData);
 
-    // Recalculate total with current discounts
-    calculateTotal(selectedCourse?.price || 0, newSelectedServices, bookingDiscount, serviceDiscount);
+    // Recalculate total with current discounts using the coursePrice from form (already set based on transmission)
+    calculateTotal(formValues.coursePrice || 0, newSelectedServices, bookingDiscount, serviceDiscount);
   };
 
   // Calculate total amount using addonPrice from schoolService
@@ -850,6 +883,10 @@ const BookingForm = () => {
 
     if (formValues.totalAmount <= 0) {
       errors.push("Please select a course to calculate the booking amount");
+    }
+
+    if (formValues.advanceAmount && formValues.advanceAmount > formValues.totalAmount) {
+      errors.push("Advance amount cannot be more than the total amount");
     }
 
     return {
@@ -1118,10 +1155,47 @@ const BookingForm = () => {
         await Promise.all(sessionPromises);
       }
 
-      return bookingResponse;
+      return { bookingResponse, createdBookingId: createdBooking.id };
     },
-    onSuccess: () => {
-      toast.success("Booking, services, and sessions created successfully!");
+    onSuccess: async (data: { bookingResponse: unknown; createdBookingId: number }) => {
+      // If advance amount is provided, create payment
+      if (pendingData?.advanceAmount && pendingData.advanceAmount > 0) {
+        try {
+          const paymentNumber = `PAY${data.createdBookingId}1${Date.now()}`;
+          
+          await ApiCall({
+            query: `mutation CreatePayment($inputType: CreatePaymentInput!) {
+              createPayment(inputType: $inputType) {
+                id
+                paymentNumber
+                amount
+                status
+              }
+            }`,
+            variables: {
+              inputType: {
+                bookingId: data.createdBookingId,
+                userId: userId,
+                amount: pendingData.advanceAmount,
+                paymentMethod: "CASH",
+                transactionId: "",
+                installmentNumber: 1,
+                totalInstallments: 1,
+                notes: "Advance payment during booking",
+                paymentNumber: paymentNumber,
+              },
+            },
+          });
+          
+          toast.success("Booking created and advance payment recorded successfully!");
+        } catch (error) {
+          console.error("Failed to create payment:", error);
+          toast.warning("Booking created, but advance payment recording failed. Please add payment manually.");
+        }
+      } else {
+        toast.success("Booking, services, and sessions created successfully!");
+      }
+      
       setShowConfirmModal(false);
       router.push("/mtadmin/scheduler");
     },
@@ -1467,7 +1541,7 @@ const BookingForm = () => {
                           required={true}
                           options={availableTimeSlots.map((slot) => ({
                             value: slot,
-                            label: slot,
+                            label: convertSlotTo12Hour(slot),
                           }))}
                           disable={
                             !bookingDate || availableTimeSlots.length == 0
@@ -1618,8 +1692,17 @@ const BookingForm = () => {
                           <div className="text-right">
                             <p className="text-xs text-gray-500">Course Fee</p>
                             <p className="text-2xl font-bold text-blue-600">
-                              ₹{selectedCourse.price.toLocaleString("en-IN")}
+                              ₹{(formValues.coursePrice || selectedCourse.price).toLocaleString("en-IN")}
                             </p>
+                            {(() => {
+                              const carData = numericCarId ? selectedCarData : dropdownSelectedCar;
+                              const isAutomatic = carData?.transmission === "AUTOMATIC" || carData?.transmission === "AMT" || carData?.transmission === "CVT";
+                              return isAutomatic && selectedCourse.automaticPrice ? (
+                                <p className="text-xs text-blue-500 mt-1">Automatic Car Price</p>
+                              ) : (
+                                <p className="text-xs text-gray-500 mt-1">Manual Car Price</p>
+                              );
+                            })()}
                           </div>
                         </div>
 
@@ -1778,7 +1861,7 @@ const BookingForm = () => {
                       onChange={(e) => {
                         const value = parseFloat(e.target.value) || 0;
                         setBookingDiscount(value);
-                        calculateTotal(selectedCourse?.price || 0, selectedServices, value, serviceDiscount);
+                        calculateTotal(formValues.coursePrice || 0, selectedServices, value, serviceDiscount);
                       }}
                       prefix="₹"
                     />
@@ -1800,7 +1883,7 @@ const BookingForm = () => {
                       onChange={(e) => {
                         const value = parseFloat(e.target.value) || 0;
                         setServiceDiscount(value);
-                        calculateTotal(selectedCourse?.price || 0, selectedServices, bookingDiscount, value);
+                        calculateTotal(formValues.coursePrice || 0, selectedServices, bookingDiscount, value);
                       }}
                       prefix="₹"
                       disabled={selectedServices.length === 0}
@@ -1831,6 +1914,64 @@ const BookingForm = () => {
                           • Services: ₹{serviceDiscount.toLocaleString("en-IN")} (₹{(serviceDiscount / selectedServices.length).toFixed(2)} each)
                         </p>
                       )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Advance Payment Card */}
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+                <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                  <DollarOutlined className="text-green-600" />
+                  Advance Payment
+                  <Tag color="blue" className="ml-2">
+                    Optional
+                  </Tag>
+                </h2>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Advance Amount (₹)
+                    </label>
+                    <Input
+                      type="number"
+                      size="large"
+                      placeholder="Enter advance payment amount"
+                      min={0}
+                      max={formValues.totalAmount}
+                      value={advanceAmount || ""}
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value) || 0;
+                        if (value <= formValues.totalAmount) {
+                          setAdvanceAmount(value);
+                          setValue("advanceAmount", value);
+                        } else {
+                          toast.error("Advance amount cannot exceed total amount");
+                        }
+                      }}
+                      prefix="₹"
+                      disabled={!formValues.totalAmount || formValues.totalAmount <= 0}
+                    />
+                    {formValues.totalAmount > 0 ? (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Maximum advance: ₹{formValues.totalAmount.toLocaleString("en-IN")}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Please select a course to enable advance payment
+                      </p>
+                    )}
+                  </div>
+
+                  {advanceAmount > 0 && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <p className="text-sm font-semibold text-blue-800 mb-1">
+                        Advance: ₹{advanceAmount.toLocaleString("en-IN")}
+                      </p>
+                      <p className="text-xs text-blue-700">
+                        • Remaining: ₹{(formValues.totalAmount - advanceAmount).toLocaleString("en-IN")}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -1906,11 +2047,22 @@ const BookingForm = () => {
                         <span className="text-sm text-gray-600">Course:</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-gray-900 text-sm">
-                          {selectedCourse.name}
-                        </span>
+                        <div>
+                          <span className="font-semibold text-gray-900 text-sm">
+                            {selectedCourse.name}
+                          </span>
+                          {(() => {
+                            const carData = numericCarId ? selectedCarData : dropdownSelectedCar;
+                            const isAutomatic = carData?.transmission === "AUTOMATIC" || carData?.transmission === "AMT" || carData?.transmission === "CVT";
+                            return isAutomatic && selectedCourse.automaticPrice ? (
+                              <div className="text-xs text-blue-500 mt-1">Automatic</div>
+                            ) : (
+                              <div className="text-xs text-gray-500 mt-1">Manual</div>
+                            );
+                          })()}
+                        </div>
                         <span className="font-bold text-blue-600">
-                          ₹{selectedCourse.price}
+                          ₹{(formValues.coursePrice || selectedCourse.price).toLocaleString("en-IN")}
                         </span>
                       </div>
                     </div>
@@ -1946,7 +2098,7 @@ const BookingForm = () => {
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-600">Subtotal:</span>
                         <span className="font-semibold text-gray-900">
-                          ₹{((selectedCourse?.price || 0) + services.filter(s => selectedServices.includes(s.id)).reduce((sum, s) => sum + s.addonPrice, 0)).toLocaleString("en-IN")}
+                          ₹{((formValues.coursePrice || selectedCourse?.price || 0) + services.filter(s => selectedServices.includes(s.id)).reduce((sum, s) => sum + s.addonPrice, 0)).toLocaleString("en-IN")}
                         </span>
                       </div>
                       {bookingDiscount > 0 && (
@@ -1984,6 +2136,28 @@ const BookingForm = () => {
                         : "Including all courses and services"}
                     </p>
                   </div>
+
+                  {/* Advance Payment Info */}
+                  {advanceAmount > 0 && (
+                    <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-semibold text-green-900">
+                          Advance Payment
+                        </span>
+                        <span className="text-lg font-bold text-green-700">
+                          ₹{advanceAmount.toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-green-700">
+                          Remaining Amount
+                        </span>
+                        <span className="text-sm font-semibold text-green-800">
+                          ₹{(formValues.totalAmount - advanceAmount).toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Submit Button */}
                   <Button
@@ -2222,6 +2396,33 @@ const BookingForm = () => {
                 </span>
               </div>
             </div>
+
+            {/* Advance Payment Information */}
+            {pendingData.advanceAmount && pendingData.advanceAmount > 0 && (
+              <div className="bg-green-50 rounded-lg p-4 border-2 border-green-300">
+                <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                  <DollarOutlined className="text-green-600" />
+                  Advance Payment
+                </h3>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-700">Advance Amount:</span>
+                    <span className="text-lg font-bold text-green-600">
+                      ₹{pendingData.advanceAmount.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-green-200">
+                    <span className="text-sm text-gray-700">Remaining Balance:</span>
+                    <span className="text-lg font-bold text-orange-600">
+                      ₹{(pendingData.totalAmount - pendingData.advanceAmount).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                </div>
+                <p className="text-xs text-green-700 mt-3 bg-white rounded px-2 py-1">
+                  💡 This advance payment will be recorded immediately upon booking confirmation
+                </p>
+              </div>
+            )}
 
             {pendingData.notes && (
               <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">

@@ -185,12 +185,21 @@ const CourseDetailPage = ({
           </Col>
           <Col xs={24} sm={12} lg={6}>
             <Card className="shadow-sm">
-              <Statistic
-                title="Course Price"
-                value={courseData.price}
-                prefix="₹"
-                valueStyle={{ fontSize: "24px" }}
-              />
+              <div className="space-y-2">
+                <div className="text-sm text-gray-500">Course Price</div>
+                <div className="text-2xl font-semibold text-gray-900">
+                  ₹{courseData.price.toLocaleString("en-IN")}
+                </div>
+                <div className="text-xs text-gray-500">Manual</div>
+                {courseData.automaticPrice && (
+                  <>
+                    <div className="text-xl font-semibold text-blue-600">
+                      ₹{courseData.automaticPrice.toLocaleString("en-IN")}
+                    </div>
+                    <div className="text-xs text-gray-500">Automatic</div>
+                  </>
+                )}
+              </div>
             </Card>
           </Col>
         </Row>
@@ -217,9 +226,14 @@ const CourseDetailPage = ({
             <Descriptions.Item label="Total Duration">
               {totalDurationDays} days
             </Descriptions.Item>
-            <Descriptions.Item label="Price">
+            <Descriptions.Item label="Manual Car Price">
               ₹{courseData.price.toLocaleString("en-IN")}
             </Descriptions.Item>
+            {courseData.automaticPrice && (
+              <Descriptions.Item label="Automatic Car Price">
+                ₹{courseData.automaticPrice.toLocaleString("en-IN")}
+              </Descriptions.Item>
+            )}
             <Descriptions.Item label="Status">
               <Tag color={getStatusColor(courseData.status)}>
                 {courseData.status}

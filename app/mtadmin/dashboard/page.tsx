@@ -20,6 +20,7 @@ import { useRouter } from "next/navigation";
 import { getSchoolById, getSchoolDashboardStats } from "@/services/school.api";
 import { getAllBookings } from "@/services/booking.api";
 import { getCookie } from "cookies-next";
+import { convertSlotTo12Hour } from "@/utils/time-format";
 import { useQuery } from "@tanstack/react-query";
 import { SetupWizard } from "@/components/setup-wizard";
 import { useSetupProgress } from "@/utils/use-setup-progress";
@@ -215,7 +216,7 @@ const Dashboard = () => {
       render: (_, record) => (
         <div>
           <div>{record.date}</div>
-          <div className="text-xs text-gray-500">{record.slot}</div>
+          <div className="text-xs text-gray-500">{convertSlotTo12Hour(record.slot)}</div>
         </div>
       ),
     },

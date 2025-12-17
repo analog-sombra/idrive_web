@@ -19,6 +19,12 @@ export const AddCourseSchema = v.object({
     v.string(),
     v.regex(/^[0-9]+(\.[0-9]+)?$/, "Price must be a valid number")
   ),
+  automaticPrice: v.optional(
+    v.pipe(
+      v.string(),
+      v.regex(/^[0-9]+(\.[0-9]+)?$/, "Automatic price must be a valid number")
+    )
+  ),
 
   // Course Details
   description: v.pipe(

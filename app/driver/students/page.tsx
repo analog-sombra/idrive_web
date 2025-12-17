@@ -31,6 +31,7 @@ import {
 } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { getCookie } from "cookies-next";
+import { convertSlotTo12Hour } from "@/utils/time-format";
 import dayjs from "dayjs";
 import {
   useReactTable,
@@ -628,7 +629,7 @@ const StudentsPage = () => {
                   <CalendarOutlined /> {dayjs(selectedBooking.bookingDate).format("DD MMM YYYY")}
                 </Descriptions.Item>
                 <Descriptions.Item label="Time Slot">
-                  <ClockCircleOutlined /> {selectedBooking.slot}
+                  <ClockCircleOutlined /> {convertSlotTo12Hour(selectedBooking.slot)}
                 </Descriptions.Item>
               </Descriptions>
             </Card>

@@ -10,6 +10,7 @@ export interface Course {
   minsPerDay: number;
   courseDays: number;
   price: number;
+  automaticPrice?: number;
   enrolledStudents: number;
   description: string;
   syllabus?: string;
@@ -59,6 +60,7 @@ const GET_PAGINATED_COURSES = `
         minsPerDay
         courseDays
         price
+        automaticPrice
         enrolledStudents
         sessionsCompleted
         totalRevenue
@@ -83,6 +85,7 @@ const GET_ALL_COURSES = `
       minsPerDay
       courseDays
       price
+      automaticPrice
       enrolledStudents
       status
     }
@@ -100,6 +103,7 @@ const GET_COURSE_BY_ID = `
       minsPerDay
       courseDays
       price
+      automaticPrice
       enrolledStudents
       description
       syllabus
@@ -124,6 +128,7 @@ const CREATE_COURSE = `
       minsPerDay
       courseDays
       price
+      automaticPrice
       status
       createdAt
     }
@@ -141,6 +146,7 @@ const UPDATE_COURSE = `
       minsPerDay
       courseDays
       price
+      automaticPrice
       enrolledStudents
       description
       syllabus
@@ -206,6 +212,7 @@ export const createCourse = async (inputType: {
   minsPerDay: number;
   courseDays: number;
   price: number;
+  automaticPrice?: number;
   description: string;
   syllabus?: string;
   requirements?: string;
@@ -224,6 +231,7 @@ export const updateCourse = async (updateData: {
   minsPerDay?: number;
   courseDays?: number;
   price?: number;
+  automaticPrice?: number;
   enrolledStudents?: number;
   description?: string;
   syllabus?: string;

@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense } from "react";
-import BookingForm from "@/components/form/booking";
+import  BookingForm from "@/components/form/booking";
 import { useSetupProgress } from "@/utils/use-setup-progress";
 import { canAccessFeature, getNextStep } from "@/utils/setup-progress";
 import { SetupBlocker } from "@/components/setup-wizard";

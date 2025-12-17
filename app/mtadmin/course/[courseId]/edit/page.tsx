@@ -119,6 +119,7 @@ const EditCoursePage = ({ params }: { params: Promise<{ courseId: string }> }) =
         minsPerDay: parseInt(data.minsPerDay),
         courseDays: parseInt(data.courseDays),
         price: parseFloat(data.price),
+        automaticPrice: data.automaticPrice ? parseFloat(data.automaticPrice) : undefined,
         description: data.description,
         syllabus: data.syllabus,
         requirements: data.requirements,
@@ -358,9 +359,19 @@ const EditCoursePage = ({ params }: { params: Promise<{ courseId: string }> }) =
                   <div>
                     <TextInput<EditCourseForm>
                       name="price"
-                      title="Price (₹)"
+                      title="Manual Car Price (₹)"
                       placeholder="e.g., 5000"
                       required
+                      onlynumber
+                      numdes
+                    />
+                  </div>
+                  <div>
+                    <TextInput<EditCourseForm>
+                      name="automaticPrice"
+                      title="Automatic Car Price (₹)"
+                      placeholder="e.g., 6000 (Optional)"
+                      required={false}
                       onlynumber
                       numdes
                     />

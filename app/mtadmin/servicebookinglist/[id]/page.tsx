@@ -13,6 +13,11 @@ import {
   Input,
   DatePicker,
   Select,
+  Table,
+  Statistic,
+  Row,
+  Col,
+  InputNumber,
 } from "antd";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -24,13 +29,24 @@ import {
 } from "@/services/license-application.api";
 import { getServerDateTime } from "@/services/utils.api";
 import {
+  getServicePaymentsByBookingService,
+  getTotalPaidServiceAmount,
+  createServicePayment,
+  type ServicePayment,
+} from "@/services/service-payment.api";
+import {
   ArrowLeftOutlined,
   EditOutlined,
   CheckCircleOutlined,
+  DollarOutlined,
+  PlusOutlined,
+  ClockCircleOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import isSameOrAfter from "dayjs/plugin/isSameOrAfter";
 import { toast } from "react-toastify";
+import { getCookie } from "cookies-next";
+import { useQueryClient } from "@tanstack/react-query";
 
 dayjs.extend(isSameOrAfter);
 
@@ -40,8 +56,11 @@ interface ServiceBookingViewPageProps {
 
 const ServiceBookingViewPage = ({ params }: ServiceBookingViewPageProps) => {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const userId = parseInt(getCookie("id")?.toString() || "0");
   const [bookingServiceId, setBookingServiceId] = useState<number | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isDLModalOpen, setIsDLModalOpen] = useState(false);
   const [isResultModalOpen, setIsResultModalOpen] = useState(false);
   const [selectedLicenseApp, setSelectedLicenseApp] = useState<{
@@ -56,6 +75,7 @@ const ServiceBookingViewPage = ({ params }: ServiceBookingViewPageProps) => {
   const [form] = Form.useForm();
   const [dlForm] = Form.useForm();
   const [resultForm] = Form.useForm();
+  const [paymentForm] = Form.useForm();
   const [testResult, setTestResult] = useState<string>("");
 
   // Unwrap params
@@ -82,6 +102,85 @@ const ServiceBookingViewPage = ({ params }: ServiceBookingViewPageProps) => {
     queryFn: () => getBookingServiceById(bookingServiceId!),
     enabled: bookingServiceId !== null && bookingServiceId > 0,
   });
+
+  // Fetch service payments
+  const { data: servicePaymentsData } = useQuery({
+    queryKey: ["service-payments", bookingServiceId],
+    queryFn: () => getServicePaymentsByBookingService(bookingServiceId!),
+    enabled: bookingServiceId !== null && bookingServiceId > 0,
+  });
+
+  const { data: totalPaidServiceData } = useQuery({
+    queryKey: ["service-payment-total", bookingServiceId],
+    queryFn: () => getTotalPaidServiceAmount(bookingServiceId!),
+    enabled: bookingServiceId !== null && bookingServiceId > 0,
+  });
+
+  const bookingService: BookingService | undefined =
+    bookingServiceResponse?.data?.getBookingServiceById;
+  const servicePayments: ServicePayment[] = servicePaymentsData?.data?.getAllServicePayment || [];
+  const totalPaidService = totalPaidServiceData?.data?.getTotalPaidServiceAmount || 0;
+  const remainingServiceAmount = bookingService ? bookingService.price - totalPaidService : 0;
+
+  // Create payment mutation
+  const createPaymentMutation = useMutation({
+    mutationFn: async (inputData: {
+      bookingServiceId: number;
+      userId: number;
+      amount: number;
+      paymentMethod: string;
+      transactionId: string;
+      installmentNumber: number;
+      totalInstallments: number;
+      notes: string;
+      paymentNumber: string;
+    }) => {
+      return createServicePayment(inputData);
+    },
+    onSuccess: () => {
+      toast.success("Payment recorded successfully!");
+      queryClient.invalidateQueries({ queryKey: ["service-payments", bookingServiceId] });
+      queryClient.invalidateQueries({ queryKey: ["service-payment-total", bookingServiceId] });
+      setIsPaymentModalOpen(false);
+      paymentForm.resetFields();
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to record payment");
+    },
+  });
+
+  // Handle payment form submit
+  const onPaymentSubmit = (values: {
+    amount: number;
+    paymentMethod: string;
+    transactionId: string;
+    installmentNumber: number;
+    totalInstallments: number;
+    notes: string;
+  }) => {
+    if (!bookingService) return;
+    
+    const paymentNumber = `SPAY${bookingService.id}${Date.now()}`;
+    createPaymentMutation.mutate({
+      bookingServiceId: bookingService.id,
+      userId,
+      paymentNumber,
+      ...values,
+    });
+  };
+
+  // Handle open payment modal
+  const handleOpenPaymentModal = () => {
+    setIsPaymentModalOpen(true);
+    paymentForm.setFieldsValue({
+      amount: remainingServiceAmount,
+      paymentMethod: "CASH",
+      transactionId: "",
+      installmentNumber: 1,
+      totalInstallments: 1,
+      notes: "",
+    });
+  };
 
   // Mutation for updating license application
   const { mutate: updateLicense, isPending: isUpdating } = useMutation({
@@ -380,9 +479,6 @@ const ServiceBookingViewPage = ({ params }: ServiceBookingViewPageProps) => {
     });
   };
 
-  const bookingService: BookingService | undefined =
-    bookingServiceResponse?.data?.getBookingServiceById;
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -668,6 +764,147 @@ const ServiceBookingViewPage = ({ params }: ServiceBookingViewPageProps) => {
 
         <div></div>
 
+        {/* Payment History - Only for LICENSE service type */}
+        {bookingService.serviceType === "LICENSE" && (
+          <>
+            <Card className="shadow-sm mb-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-gray-900">Payment History</h2>
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  onClick={handleOpenPaymentModal}
+                  disabled={remainingServiceAmount <= 0}
+                >
+                  Collect Payment
+                </Button>
+              </div>
+
+              <Row gutter={16} className="mb-6">
+                <Col span={8}>
+                  <Card bordered={false} className="bg-blue-50">
+                    <Statistic
+                      title="Total Amount"
+                      value={bookingService.price}
+                      prefix="₹"
+                      valueStyle={{ color: "#1890ff" }}
+                      suffix={<DollarOutlined />}
+                    />
+                  </Card>
+                </Col>
+                <Col span={8}>
+                  <Card bordered={false} className="bg-green-50">
+                    <Statistic
+                      title="Total Paid"
+                      value={totalPaidService}
+                      prefix="₹"
+                      valueStyle={{ color: "#52c41a" }}
+                      suffix={<CheckCircleOutlined />}
+                    />
+                  </Card>
+                </Col>
+                <Col span={8}>
+                  <Card bordered={false} className="bg-red-50">
+                    <Statistic
+                      title="Remaining Due"
+                      value={remainingServiceAmount}
+                      prefix="₹"
+                      valueStyle={{ color: "#ff4d4f" }}
+                      suffix={<ClockCircleOutlined />}
+                    />
+                  </Card>
+                </Col>
+              </Row>
+
+              <Table<ServicePayment>
+                columns={[
+                  {
+                    title: "Payment #",
+                    dataIndex: "paymentNumber",
+                    key: "paymentNumber",
+                    width: 150,
+                    fixed: "left",
+                  },
+                  {
+                    title: "Date",
+                    dataIndex: "paymentDate",
+                    key: "paymentDate",
+                    width: 130,
+                    render: (date) => new Date(date).toLocaleDateString("en-IN"),
+                  },
+                  {
+                    title: "Amount",
+                    dataIndex: "amount",
+                    key: "amount",
+                    width: 120,
+                    render: (amount) => `₹${amount.toLocaleString("en-IN")}`,
+                  },
+                  {
+                    title: "Method",
+                    dataIndex: "paymentMethod",
+                    key: "paymentMethod",
+                    width: 120,
+                    render: (method) => method || "-",
+                  },
+                  {
+                    title: "Transaction ID",
+                    dataIndex: "transactionId",
+                    key: "transactionId",
+                    width: 150,
+                    render: (id) => id || "-",
+                  },
+                  {
+                    title: "Installment",
+                    key: "installment",
+                    width: 120,
+                    render: (_, record) =>
+                      `${record.installmentNumber}/${record.totalInstallments}`,
+                  },
+                  {
+                    title: "Status",
+                    dataIndex: "status",
+                    key: "status",
+                    width: 120,
+                    render: (status) => (
+                      <Tag
+                        color={
+                          status == "COMPLETED"
+                            ? "green"
+                            : status == "PENDING"
+                            ? "orange"
+                            : status == "FAILED"
+                            ? "red"
+                            : status == "REFUNDED"
+                            ? "purple"
+                            : "default"
+                        }
+                      >
+                        {status}
+                      </Tag>
+                    ),
+                  },
+                  {
+                    title: "Notes",
+                    dataIndex: "notes",
+                    key: "notes",
+                    ellipsis: true,
+                    render: (notes) => notes || "-",
+                  },
+                ]}
+                dataSource={servicePayments}
+                pagination={false}
+                rowKey="id"
+                size="small"
+                scroll={{ x: 1000 }}
+                locale={{
+                  emptyText: "No payment records found",
+                }}
+              />
+            </Card>
+            <div></div>
+          </>
+        )}
+
         {/* Timestamps */}
         <Card title="Booking Timeline" className="shadow-sm">
           <Descriptions bordered column={{ xs: 1, sm: 2, md: 2 }}>
@@ -885,6 +1122,156 @@ const ServiceBookingViewPage = ({ params }: ServiceBookingViewPageProps) => {
             )}
           </Form>
         </div>
+      </Modal>
+
+      {/* Payment Collection Modal */}
+      <Modal
+        title="Collect Payment"
+        open={isPaymentModalOpen}
+        onCancel={() => setIsPaymentModalOpen(false)}
+        footer={null}
+        width={600}
+      >
+        <Form
+          form={paymentForm}
+          layout="vertical"
+          onFinish={onPaymentSubmit}
+          className="space-y-4"
+        >
+          <div className="mb-4 p-4 bg-gray-50 rounded">
+            <div className="flex justify-between mb-2">
+              <span className="text-gray-600">Total Amount:</span>
+              <span className="font-semibold">
+                ₹{bookingService?.price.toLocaleString("en-IN")}
+              </span>
+            </div>
+            <div className="flex justify-between mb-2">
+              <span className="text-gray-600">Already Paid:</span>
+              <span className="font-semibold text-green-600">
+                ₹{totalPaidService.toLocaleString("en-IN")}
+              </span>
+            </div>
+            <div className="flex justify-between pt-2 border-t border-gray-300">
+              <span className="text-gray-900 font-bold">Remaining Due:</span>
+              <span className="font-bold text-red-600">
+                ₹{remainingServiceAmount.toLocaleString("en-IN")}
+              </span>
+            </div>
+          </div>
+
+          <Form.Item
+            label="Payment Amount"
+            name="amount"
+            rules={[
+              { required: true, message: "Please enter payment amount" },
+              {
+                type: "number",
+                min: 1,
+                message: "Amount must be greater than 0",
+              },
+              {
+                validator: (_, value) =>
+                  value <= remainingServiceAmount
+                    ? Promise.resolve()
+                    : Promise.reject(
+                        new Error(
+                          `Amount cannot exceed remaining due (₹${remainingServiceAmount})`
+                        )
+                      ),
+              },
+            ]}
+          >
+            <InputNumber
+              style={{ width: "100%" }}
+              size="large"
+              prefix="₹"
+              min={0}
+              max={remainingServiceAmount}
+              placeholder="Enter payment amount"
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="Payment Method"
+            name="paymentMethod"
+            rules={[{ required: true, message: "Please select payment method" }]}
+          >
+            <Select size="large" placeholder="Select payment method">
+              <Select.Option value="CASH">Cash</Select.Option>
+              <Select.Option value="CARD">Card</Select.Option>
+              <Select.Option value="UPI">UPI</Select.Option>
+              <Select.Option value="BANK_TRANSFER">Bank Transfer</Select.Option>
+              <Select.Option value="CHEQUE">Cheque</Select.Option>
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            label="Transaction ID (Optional)"
+            name="transactionId"
+          >
+            <Input
+              size="large"
+              placeholder="Enter transaction/reference ID"
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="Installment Number"
+            name="installmentNumber"
+            rules={[
+              { required: true, message: "Please enter installment number" },
+            ]}
+          >
+            <InputNumber
+              style={{ width: "100%" }}
+              size="large"
+              min={1}
+              placeholder="Enter installment number"
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="Total Installments"
+            name="totalInstallments"
+            rules={[
+              { required: true, message: "Please enter total installments" },
+            ]}
+          >
+            <InputNumber
+              style={{ width: "100%" }}
+              size="large"
+              min={1}
+              placeholder="Enter total installments"
+            />
+          </Form.Item>
+
+          <Form.Item label="Notes (Optional)" name="notes">
+            <Input.TextArea
+              rows={3}
+              placeholder="Any additional notes about this payment"
+            />
+          </Form.Item>
+
+          <Form.Item className="mb-0">
+            <Space className="w-full justify-end">
+              <Button
+                size="large"
+                onClick={() => setIsPaymentModalOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="primary"
+                size="large"
+                htmlType="submit"
+                loading={createPaymentMutation.isPending}
+                icon={<DollarOutlined />}
+              >
+                Record Payment
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
       </Modal>
     </div>
   );

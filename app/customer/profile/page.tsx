@@ -28,6 +28,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getUserById, type User } from "@/services/user.api";
 import { getAllBookings, type Booking } from "@/services/booking.api";
 import { getCookie } from "cookies-next";
+import { convertSlotTo12Hour } from "@/utils/time-format";
 import dayjs from "dayjs";
 
 interface BookingData {
@@ -119,7 +120,7 @@ const CustomerProfilePage = () => {
       render: (_, record) => (
         <div>
           <div className="font-medium">{record.date}</div>
-          <div className="text-xs text-gray-500">{record.slot}</div>
+          <div className="text-xs text-gray-500">{convertSlotTo12Hour(record.slot)}</div>
         </div>
       ),
     },

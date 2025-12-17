@@ -69,6 +69,7 @@ const AddCoursePage = () => {
         minsPerDay: parseInt(data.minsPerDay),
         courseDays: parseInt(data.courseDays),
         price: parseFloat(data.price),
+        automaticPrice: data.automaticPrice ? parseFloat(data.automaticPrice) : undefined,
         description: data.description,
         syllabus: data.syllabus,
         requirements: data.requirements,
@@ -100,7 +101,10 @@ const AddCoursePage = () => {
               <p><strong>Course Type:</strong> {course.courseType}</p>
               <p><strong>Hours Per Day:</strong> {course.minsPerDay} min</p>
               <p><strong>Course Days:</strong> {course.courseDays} days</p>
-              <p><strong>Price:</strong> ₹{course.price}</p>
+              <p><strong>Manual Car Price:</strong> ₹{course.price}</p>
+              {course.automaticPrice && (
+                <p><strong>Automatic Car Price:</strong> ₹{course.automaticPrice}</p>
+              )}
               {selectedCarIds.length > 0 && (
                 <p><strong>Cars Assigned:</strong> {selectedCarIds.length} car(s)</p>
               )}
@@ -129,7 +133,10 @@ const AddCoursePage = () => {
           <p><strong>Hours Per Day:</strong> {minsPerDay} minutes</p>
           <p><strong>Course Days:</strong> {courseDays} days</p>
           <p><strong>Total Duration:</strong> {durationInDays} days</p>
-          <p><strong>Price:</strong> ₹{data.price}</p>
+          <p><strong>Manual Car Price:</strong> ₹{data.price}</p>
+          {data.automaticPrice && (
+            <p><strong>Automatic Car Price:</strong> ₹{data.automaticPrice}</p>
+          )}
           <br />
           <p>Are you sure you want to create this course?</p>
         </div>
@@ -228,9 +235,19 @@ const AddCoursePage = () => {
                   <div>
                     <TextInput<AddCourseForm>
                       name="price"
-                      title="Price (₹)"
+                      title="Manual Car Price (₹)"
                       placeholder="e.g., 5000"
                       required
+                      onlynumber
+                      numdes
+                    />
+                  </div>
+                  <div>
+                    <TextInput<AddCourseForm>
+                      name="automaticPrice"
+                      title="Automatic Car Price (₹)"
+                      placeholder="e.g., 6000 (Optional)"
+                      required={false}
                       onlynumber
                       numdes
                     />

@@ -10,6 +10,7 @@ import { getPaginatedBookings } from "@/services/booking.api";
 import { getTotalPaidAmount } from "@/services/payment.api";
 import { getCookie } from "cookies-next";
 import { WarningOutlined } from "@ant-design/icons";
+import { convertSlotTo12Hour } from "@/utils/time-format";
 
 const { Search } = Input;
 
@@ -205,6 +206,7 @@ const BookingListPage = () => {
       title: "Slot",
       dataIndex: "slot",
       key: "slot",
+      render: (slot: string) => convertSlotTo12Hour(slot),
       width: 110,
     },
     {

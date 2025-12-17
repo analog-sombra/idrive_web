@@ -26,6 +26,7 @@ interface CourseData {
   minsPerDay: number;
   courseDays: number;
   price: number;
+  automaticPrice?: number;
   status: "active" | "inactive" | "upcoming" | "archived";
   enrolledStudents: number;
   description: string;
@@ -87,6 +88,7 @@ const CourseManagementPage = () => {
       minsPerDay: course.minsPerDay,
       courseDays: course.courseDays,
       price: course.price,
+      automaticPrice: course.automaticPrice,
       status: course.status.toLowerCase() as
         | "active"
         | "inactive"
@@ -189,15 +191,21 @@ const CourseManagementPage = () => {
     },
     {
       title: "Price",
-      dataIndex: "price",
       key: "price",
-      width: 120,
+      width: 160,
       align: "right",
       sorter: (a, b) => a.price - b.price,
-      render: (price) => (
-        <span className="font-semibold text-gray-900">
-          ₹{price.toLocaleString("en-IN")}
-        </span>
+      render: (_, record) => (
+        <div className="text-right">
+          <div className="font-semibold text-gray-900">
+            ₹{record.price.toLocaleString("en-IN")}
+          </div>
+          {record.automaticPrice && (
+            <div className="text-xs text-blue-600 mt-1">
+              Auto: ₹{record.automaticPrice.toLocaleString("en-IN")}
+            </div>
+          )}
+        </div>
       ),
     },
     {

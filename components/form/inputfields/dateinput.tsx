@@ -42,6 +42,7 @@ export function DateInput<T extends FieldValues>(props: DateInputProps<T>) {
               status={error ? "error" : undefined}
               className="w-full"
               format={format}
+              use12Hours={true}
               value={field.value ? dayjs(field.value, format) : null}
               onChange={(date: Dayjs | null) => {
                 field.onChange(date ? date.format(format) : "");

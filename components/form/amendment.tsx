@@ -17,6 +17,7 @@ import {
   Empty,
   Badge,
   DatePicker,
+  Select,
 } from "antd";
 import { getCookie } from "cookies-next";
 import { getSchoolById } from "@/services/school.api";
@@ -32,6 +33,7 @@ import {
   DeleteOutlined,
   ToolOutlined,
   StopOutlined,
+  CheckCircleOutlined,
 } from "@ant-design/icons";
 import dayjs, { Dayjs } from "dayjs";
 import utc from "dayjs/plugin/utc";
@@ -101,6 +103,27 @@ interface Booking {
   status: string;
   schoolId: number;
   sessions?: BookingSession[];
+}
+
+interface AvailableCar {
+  id: number;
+  carName: string;
+  registrationNumber: string;
+  status: string;
+  assignedDriverId?: number;
+  assignedDriver?: {
+    id: number;
+    name: string;
+  };
+}
+
+interface School {
+  id: number;
+  weeklyHoliday?: string;
+}
+
+interface GetAllCarResponse {
+  getAllCar: AvailableCar[];
 }
 
 // Fetch bookings with their sessions
@@ -209,6 +232,10 @@ const AmendmentForm = () => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [newDates, setNewDates] = useState<Dayjs[]>([]);
   const [allCarSessions, setAllCarSessions] = useState<BookingSession[]>([]);
+  const [newTimeSlot, setNewTimeSlot] = useState<string>("");
+  const [availableCars, setAvailableCars] = useState<AvailableCar[]>([]);
+  const [selectedNewCarId, setSelectedNewCarId] = useState<number | null>(null);
+  const [loadingCars, setLoadingCars] = useState(false);
 
   // Get school ID from cookie
   const schoolId: number = parseInt(getCookie("school")?.toString() || "0");
@@ -405,6 +432,35 @@ const AmendmentForm = () => {
         setValue("selectedDates", selectedDates.filter((d) => d !== date));
       }
     } else {
+      // For CAR_DATE_TIME_CHANGE, select clicked date and all dates after it (same car and slot)
+      if (amendmentAction == "CAR_DATE_TIME_CHANGE" && selectedBooking?.sessions) {
+        const clickedDate = dayjs.utc(date);
+        const futureSessions = selectedBooking.sessions.filter((session) => {
+          const sessionDate = dayjs.utc(session.sessionDate);
+          return (
+            (sessionDate.isAfter(clickedDate) ||
+              sessionDate.isSame(clickedDate, "day")) &&
+            (session.status === "PENDING" || session.status === "CONFIRMED")
+          );
+        });
+
+        const futureDates = futureSessions.map((s) =>
+          dayjs.utc(s.sessionDate).format("YYYY-MM-DD")
+        );
+        const futureSessionIds = futureSessions.map((s) => s.id);
+
+        setSelectedDates(futureDates);
+        setSelectedSessionIds(futureSessionIds);
+        setValue("selectedDates", futureDates);
+        
+        // Reset car selection
+        setAvailableCars([]);
+        setSelectedNewCarId(null);
+        setNewDates([]);
+        setNewTimeSlot("");
+        return;
+      }
+
       // For CANCEL_BOOKING, select clicked date and all dates after it
       if (amendmentAction == "CANCEL_BOOKING" && selectedBooking?.sessions) {
         const clickedDate = dayjs.utc(date);
@@ -442,6 +498,9 @@ const AmendmentForm = () => {
     setSelectedDates([]);
     setSelectedSessionIds([]);
     setNewDates([]);
+    setNewTimeSlot("");
+    setAvailableCars([]);
+    setSelectedNewCarId(null);
   };
 
   // Handle new date selection for date change
@@ -458,6 +517,149 @@ const AmendmentForm = () => {
       .map((d) => d.format("YYYY-MM-DD"))
       .join(",");
     setValue("newDate", dateStrings);
+  };
+
+  // Handle new date selection for car/date/time change
+  const handleCarDateTimeNewDateChange = (date: Dayjs | null) => {
+    if (!date || !selectedBooking) return;
+
+    // Calculate subsequent dates for all selected sessions
+    const numberOfSessions = selectedDates.length;
+    const calculatedDates: Dayjs[] = [];
+    let currentDate = date;
+    
+    for (let i = 0; i < numberOfSessions; i++) {
+      calculatedDates.push(currentDate);
+      
+      // Find next available date (skip only school holidays, NOT car bookings)
+      if (i < numberOfSessions - 1) {
+        let nextDate = currentDate.add(1, "day");
+        let attemptsLeft = 30; // Prevent infinite loop
+        
+        while (attemptsLeft > 0 && isDateBlockedForCalculation(nextDate)) {
+          nextDate = nextDate.add(1, "day");
+          attemptsLeft--;
+        }
+        
+        currentDate = nextDate;
+      }
+    }
+    
+    setNewDates(calculatedDates);
+    const dateStrings = calculatedDates.map((d) => d.format("YYYY-MM-DD")).join(",");
+    setValue("newDate", dateStrings);
+    
+    // Reset car selection when date changes
+    setAvailableCars([]);
+    setSelectedNewCarId(null);
+    setValue("newCarId", "");
+  };
+
+  // Handle time slot change for car/date/time change
+  const handleTimeSlotChange = (timeSlot: string) => {
+    setNewTimeSlot(timeSlot);
+    setValue("newTimeSlot", timeSlot);
+    
+    // Reset car selection when time changes
+    setAvailableCars([]);
+    setSelectedNewCarId(null);
+    setValue("newCarId", "");
+  };
+
+  // Fetch available cars for selected date and time
+  const fetchAvailableCars = async () => {
+    if (!selectedBooking || newDates.length === 0 || !newTimeSlot) {
+      toast.error("Please select date and time first");
+      return;
+    }
+
+    setLoadingCars(true);
+    try {
+      // Fetch all cars for the school
+      const allCarsResponse = await ApiCall({
+        query: `query GetAllCar($whereSearchInput: SearchCarInput!) {
+          getAllCar(whereSearchInput: $whereSearchInput) {
+            id
+            carName
+            registrationNumber
+            status
+            assignedDriverId
+            assignedDriver {
+              id
+              name
+            }
+          }
+        }`,
+        variables: {
+          whereSearchInput: {
+            schoolId: schoolId,
+            status: "AVAILABLE",
+          },
+        },
+      });
+
+      const allCars = (allCarsResponse?.data as GetAllCarResponse)?.getAllCar || [];
+
+      // Fetch bookings for ALL calculated dates and the selected time slot
+      const bookedSessionsPromises = newDates.map((date) =>
+        ApiCall({
+          query: `query GetAllBookingSession($whereSearchInput: WhereBookingSessionSearchInput!) {
+            getAllBookingSession(whereSearchInput: $whereSearchInput) {
+              carId
+              sessionDate
+              slot
+              status
+            }
+          }`,
+          variables: {
+            whereSearchInput: {
+              sessionDate: date.format("YYYY-MM-DD"),
+              slot: newTimeSlot,
+            },
+          },
+        })
+      );
+
+      const bookedSessionsResponses = await Promise.all(bookedSessionsPromises);
+      
+      // Combine all booked sessions from all dates
+      const allBookedSessions = bookedSessionsResponses.flatMap(
+        (response) => response?.data?.getAllBookingSession || []
+      );
+
+      // Get unique car IDs that are booked on ANY of the calculated dates at the selected time
+      const bookedCarIds = new Set(
+        allBookedSessions
+          .filter((session: BookingSession) => 
+            session.status === "PENDING" || 
+            session.status === "CONFIRMED"
+          )
+          .map((session: BookingSession) => session.carId)
+      );
+
+      // Filter out cars that are booked on ANY of the calculated dates
+      const available = allCars.filter(
+        (car: AvailableCar) => !bookedCarIds.has(car.id)
+      );
+
+      setAvailableCars(available);
+      
+      if (available.length === 0) {
+        toast.warning("No cars available for all the selected dates and time slot");
+      }
+    } catch (error) {
+      console.error("Error fetching available cars:", error);
+      toast.error("Failed to fetch available cars");
+      setAvailableCars([]);
+    } finally {
+      setLoadingCars(false);
+    }
+  };
+
+  // Handle car selection
+  const handleCarSelection = (carId: number) => {
+    setSelectedNewCarId(carId);
+    setValue("newCarId", carId.toString());
   };
 
   // Check if a date is blocked (already booked, cancelled, or holiday for the car in same slot)
@@ -540,6 +742,51 @@ const AmendmentForm = () => {
     return isBookedByCar || isHoliday;
   };
 
+  // Check if a date is blocked for date calculation (only school holidays, not car bookings)
+  const isDateBlockedForCalculation = (date: Dayjs): boolean => {
+    const dateStr = date.format("YYYY-MM-DD");
+
+    // Check weekend restriction if school has a weekly holiday
+    if (schoolData?.weeklyHoliday) {
+      const dayOfWeek = date.day();
+      const weeklyHoliday = schoolData.weeklyHoliday.toUpperCase();
+
+      const dayMap: { [key: string]: number } = {
+        SUNDAY: 0,
+        MONDAY: 1,
+        TUESDAY: 2,
+        WEDNESDAY: 3,
+        THURSDAY: 4,
+        FRIDAY: 5,
+        SATURDAY: 6,
+      };
+
+      const holidayDay = dayMap[weeklyHoliday];
+      if (holidayDay !== undefined && dayOfWeek == holidayDay) {
+        return true;
+      }
+    }
+
+    // Check school holidays only (NOT car bookings - allow dates to overlap with selected sessions)
+    const holidays: Holiday[] =
+      (holidaysResponse?.data as GetAllHolidayResponse)?.getAllHoliday || [];
+
+    const isHoliday = holidays.some((holiday: Holiday) => {
+      const holidayStart = dayjs.utc(holiday.startDate).format("YYYY-MM-DD");
+      const holidayEnd = dayjs.utc(holiday.endDate).format("YYYY-MM-DD");
+      const isInDateRange = dateStr >= holidayStart && dateStr <= holidayEnd;
+
+      // Only check SCHOOL type holidays (ignore CAR holidays for calculation)
+      if (holiday.declarationType == "SCHOOL") {
+        return isInDateRange;
+      }
+
+      return false;
+    });
+
+    return isHoliday;
+  };
+
   // Get the earliest date from course start
   const getMinAllowedDate = () => {
     if (!selectedBooking || !selectedBooking.sessions)
@@ -591,6 +838,21 @@ const AmendmentForm = () => {
       // Validate all new dates are filled
       if (newDates.some((d) => !d)) {
         errors.push("Please fill all new date fields");
+      }
+    }
+
+    if (amendmentAction == "CAR_DATE_TIME_CHANGE") {
+      if (selectedDates.length === 0) {
+        errors.push("Please select at least one session to change");
+      }
+      if (newDates.length !== selectedDates.length) {
+        errors.push("Please select a start date to generate all replacement dates");
+      }
+      if (!newTimeSlot) {
+        errors.push("Please select a new time slot");
+      }
+      if (!selectedNewCarId) {
+        errors.push("Please select an available car");
       }
     }
 
@@ -909,6 +1171,91 @@ const AmendmentForm = () => {
 
         // Return combined results
         return [...updatePromises, ...createPromises];
+      } else if (
+        amendmentAction == "CAR_DATE_TIME_CHANGE" &&
+        selectedSessionIds.length > 0 &&
+        newDates.length === selectedSessionIds.length &&
+        newTimeSlot &&
+        selectedNewCarId
+      ) {
+        // For car/date/time change: Mark old sessions as EDITED and create new sessions with new car, date, time
+        const updatePromises = [];
+        const createPromises = [];
+
+        // Get the selected car's driver
+        const selectedCar = availableCars.find((car) => car.id === selectedNewCarId);
+        const newDriverId = selectedCar?.assignedDriverId;
+
+        // Get old sessions sorted by date
+        const oldSessions = selectedBooking.sessions
+          ?.filter((s) => selectedSessionIds.includes(s.id))
+          .sort((a, b) => dayjs.utc(a.sessionDate).diff(dayjs.utc(b.sessionDate))) || [];
+
+        if (oldSessions.length === 0) {
+          throw new Error("Old sessions not found");
+        }
+
+        // Update all old sessions to EDITED status
+        for (const oldSession of oldSessions) {
+          updatePromises.push(
+            ApiCall({
+              query: `mutation UpdateBookingSession($updateType: UpdateBookingSessionInput!, $id: Int!) {
+                updateBookingSession(updateType: $updateType, id: $id) {
+                  id
+                  status
+                }
+              }`,
+              variables: {
+                id: oldSession.id,
+                updateType: {
+                  status: "EDITED",
+                  internalNotes: `Car/Date/Time changed - ${formValues.reason}`,
+                },
+              },
+            })
+          );
+        }
+
+        // Create new sessions with new car, date, time, and driver
+        for (let i = 0; i < newDates.length; i++) {
+          const newDate = newDates[i];
+          const oldSession = oldSessions[i];
+
+          if (oldSession && newDriverId) {
+            createPromises.push(
+              ApiCall({
+                query: `mutation CreateBookingSession($inputType: CreateBookingSessionInput!) {
+                  createBookingSession(inputType: $inputType) {
+                    id
+                    sessionDate
+                    slot
+                    carId
+                    driverId
+                    status
+                  }
+                }`,
+                variables: {
+                  inputType: {
+                    bookingId: selectedBooking.id,
+                    dayNumber: oldSession.dayNumber,
+                    sessionDate: newDate.format("YYYY-MM-DD"),
+                    slot: newTimeSlot,
+                    carId: selectedNewCarId,
+                    driverId: newDriverId,
+                    status: "PENDING",
+                    internalNotes: `Changed from ${dayjs.utc(oldSession.sessionDate).format("DD MMM YYYY")} ${oldSession.slot} (${selectedBooking.carName}) - ${formValues.reason}`,
+                  },
+                },
+              })
+            );
+          }
+        }
+
+        // Wait for all operations to complete
+        await Promise.all([...updatePromises, ...createPromises]);
+
+        // Return combined results
+        return [...updatePromises, ...createPromises];
       }
 
       return await Promise.all(promises);
@@ -947,6 +1294,7 @@ const AmendmentForm = () => {
     CAR_BREAKDOWN: <ToolOutlined className="text-orange-600" />,
     CAR_HOLIDAY: <StopOutlined className="text-purple-600" />,
     RELEASE_HOLD: <CalendarOutlined className="text-green-600" />,
+    CAR_DATE_TIME_CHANGE: <CarOutlined className="text-teal-600" />,
   };
 
   const actionColors = {
@@ -955,6 +1303,7 @@ const AmendmentForm = () => {
     CAR_BREAKDOWN: "orange",
     CAR_HOLIDAY: "purple",
     RELEASE_HOLD: "green",
+    CAR_DATE_TIME_CHANGE: "teal",
   };
 
   return (
@@ -1105,7 +1454,7 @@ const AmendmentForm = () => {
                             </div>
                             <div className="flex items-center gap-2">
                               <ClockCircleOutlined className="text-purple-600" />
-                              <span>{booking.slot}</span>
+                              <span>{convertSlotTo12Hour(booking.slot)}</span>
                             </div>
                             <div className="flex items-center gap-2">
                               <BookOutlined className="text-green-600" />
@@ -1233,7 +1582,7 @@ const AmendmentForm = () => {
                           {selectedBooking.carName}
                         </div>
                         <div className="text-xs text-gray-600">
-                          {selectedBooking.slot}
+                          {convertSlotTo12Hour(selectedBooking.slot)}
                         </div>
                       </div>
                       <div className="bg-orange-50 flex-1 rounded-lg p-3 border-2 border-orange-200">
@@ -1484,6 +1833,25 @@ const AmendmentForm = () => {
                           </p>
                         </div>
                       )}
+
+                      <div
+                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                          amendmentAction == "CAR_DATE_TIME_CHANGE"
+                            ? "border-teal-500 bg-teal-50"
+                            : "border-gray-300 hover:border-teal-400"
+                        }`}
+                        onClick={() => handleActionChange("CAR_DATE_TIME_CHANGE")}
+                      >
+                        <div className="flex items-center gap-3 mb-2">
+                          <CarOutlined className="text-2xl text-teal-600" />
+                          <span className="font-bold text-gray-900">
+                            Car/Date/Time Change
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600">
+                          Change car, date, and time for selected sessions
+                        </p>
+                      </div>
                     </div>
 
                     {amendmentAction && (
@@ -1722,6 +2090,170 @@ const AmendmentForm = () => {
                             );
                           })()}
 
+                        {amendmentAction == "CAR_DATE_TIME_CHANGE" &&
+                          selectedDates.length > 0 && (
+                            <div className="bg-teal-50 rounded-lg p-4 border-2 border-teal-200">
+                              <label className="block text-sm font-semibold text-gray-700 mb-3">
+                                Change Car, Date & Time ({selectedDates.length} session{selectedDates.length > 1 ? 's' : ''})
+                              </label>
+                              
+                              {/* Show selected sessions info */}
+                              <div className="bg-white rounded-lg p-3 border border-teal-300 mb-4">
+                                <div className="text-xs text-gray-600 mb-1">
+                                  Selected Sessions: {selectedDates.length}
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  {selectedDates.map((date) => (
+                                    <Tag key={date} color="blue" className="text-xs">
+                                      {dayjs(date).format("DD MMM YYYY")}
+                                    </Tag>
+                                  ))}
+                                </div>
+                                <div className="text-xs text-gray-600 mt-2">
+                                  Current: {convertSlotTo12Hour(selectedBooking?.slot || "")} - {selectedBooking?.carName}
+                                </div>
+                              </div>
+
+                              {/* Date Selection */}
+                              <div className="mb-4">
+                                <label className="block text-xs font-semibold text-gray-700 mb-2">
+                                  Select Start Date (subsequent dates will be auto-calculated)
+                                </label>
+                                <DatePicker
+                                  value={newDates[0] || null}
+                                  onChange={handleCarDateTimeNewDateChange}
+                                  format="DD MMM YYYY"
+                                  size="large"
+                                  className="w-full"
+                                  disabledDate={(current) => {
+                                    if (!current) return false;
+                                    // Only allow future dates
+                                    return current.isBefore(dayjs().add(1, "day"), "day");
+                                  }}
+                                  placeholder="Select start date (future dates only)"
+                                />
+                              </div>
+
+                              {/* Show calculated dates */}
+                              {newDates.length > 0 && (
+                                <div className="mb-4 bg-blue-50 rounded-lg p-3 border border-blue-200">
+                                  <div className="text-xs font-semibold text-gray-700 mb-2">
+                                    Calculated Dates (holidays skipped):
+                                  </div>
+                                  <div className="space-y-2">
+                                    {newDates.map((newDate, index) => (
+                                      <div key={index} className="flex items-center justify-between text-sm bg-white rounded p-2">
+                                        <div>
+                                          <span className="text-gray-600">Session {index + 1}: </span>
+                                          <span className="font-semibold text-gray-900">
+                                            {dayjs(selectedDates[index]).format("DD MMM YYYY")}
+                                          </span>
+                                        </div>
+                                        <SwapOutlined className="text-blue-600" />
+                                        <div>
+                                          <span className="font-semibold text-green-600">
+                                            {newDate.format("DD MMM YYYY")}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Time Slot Selection */}
+                              <div className="mb-4">
+                                <label className="block text-xs font-semibold text-gray-700 mb-2">
+                                  Select New Time Slot (same for all sessions)
+                                </label>
+                                <Select
+                                  value={newTimeSlot || undefined}
+                                  onChange={handleTimeSlotChange}
+                                  size="large"
+                                  className="w-full"
+                                  placeholder="Select time slot"
+                                  options={[
+                                    { value: "06:00-07:00", label: "06:00 - 07:00 AM" },
+                                    { value: "07:00-08:00", label: "07:00 - 08:00 AM" },
+                                    { value: "08:00-09:00", label: "08:00 - 09:00 AM" },
+                                    { value: "09:00-10:00", label: "09:00 - 10:00 AM" },
+                                    { value: "10:00-11:00", label: "10:00 - 11:00 AM" },
+                                    { value: "11:00-12:00", label: "11:00 - 12:00 PM" },
+                                    { value: "12:00-13:00", label: "12:00 - 01:00 PM" },
+                                    { value: "13:00-14:00", label: "01:00 - 02:00 PM" },
+                                    { value: "14:00-15:00", label: "02:00 - 03:00 PM" },
+                                    { value: "15:00-16:00", label: "03:00 - 04:00 PM" },
+                                    { value: "16:00-17:00", label: "04:00 - 05:00 PM" },
+                                    { value: "17:00-18:00", label: "05:00 - 06:00 PM" },
+                                    { value: "18:00-19:00", label: "06:00 - 07:00 PM" },
+                                    { value: "19:00-20:00", label: "07:00 - 08:00 PM" },
+                                  ]}
+                                />
+                              </div>
+
+                              {/* Check Available Cars Button */}
+                              {newDates.length > 0 && newTimeSlot && (
+                                <div className="mb-4">
+                                  <Button
+                                    type="primary"
+                                    size="large"
+                                    block
+                                    icon={<SearchOutlined />}
+                                    onClick={fetchAvailableCars}
+                                    loading={loadingCars}
+                                  >
+                                    Check Available Cars
+                                  </Button>
+                                </div>
+                              )}
+
+                              {/* Available Cars List */}
+                              {availableCars.length > 0 && (
+                                <div className="mt-4">
+                                  <label className="block text-xs font-semibold text-gray-700 mb-2">
+                                    Available Cars ({availableCars.length})
+                                  </label>
+                                  <div className="grid grid-cols-1 gap-2 max-h-64 overflow-y-auto">
+                                    {availableCars.map((car) => (
+                                      <div
+                                        key={car.id}
+                                        className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                                          selectedNewCarId === car.id
+                                            ? "border-teal-500 bg-teal-100"
+                                            : "border-gray-300 hover:border-teal-400 bg-white"
+                                        }`}
+                                        onClick={() => handleCarSelection(car.id)}
+                                      >
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex-1">
+                                            <div className="font-semibold text-gray-900">
+                                              {car.carName}
+                                            </div>
+                                            <div className="text-xs text-gray-600">
+                                              {car.registrationNumber}
+                                            </div>
+                                            {car.assignedDriver && (
+                                              <div className="text-xs text-blue-600 mt-1">
+                                                Driver: {car.assignedDriver.name}
+                                              </div>
+                                            )}
+                                          </div>
+                                          {selectedNewCarId === car.id && (
+                                            <CheckCircleOutlined className="text-teal-600 text-xl" />
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              <div className="mt-3 text-xs text-teal-700 bg-teal-100 rounded p-2">
+                                <strong>Note:</strong> Select sessions to change. The system will automatically calculate subsequent dates, skipping holidays. All sessions will use the same new car and time slot.
+                              </div>
+                            </div>
+                          )}
+
                         <div>
                           <TaxtAreaInput
                             name="reason"
@@ -1761,7 +2293,9 @@ const AmendmentForm = () => {
                             ((amendmentAction == "CHANGE_DATE" ||
                               amendmentAction == "CAR_BREAKDOWN" ||
                               amendmentAction == "RELEASE_HOLD") &&
-                              newDates.length !== selectedDates.length)
+                              newDates.length !== selectedDates.length) ||
+                            (amendmentAction == "CAR_DATE_TIME_CHANGE" &&
+                              (!newDates[0] || !newTimeSlot || !selectedNewCarId))
                           }
                           danger={amendmentAction == "CANCEL_BOOKING"}
                           className="mt-4"
@@ -1952,6 +2486,48 @@ const AmendmentForm = () => {
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {amendmentAction == "CAR_DATE_TIME_CHANGE" && newDates.length > 0 && newTimeSlot && selectedNewCarId && (
+              <div className="bg-teal-50 rounded-lg p-4 border border-teal-200">
+                <h3 className="font-bold text-gray-900 mb-3">
+                  Car/Date/Time Change Details ({newDates.length} session{newDates.length > 1 ? 's' : ''})
+                </h3>
+                <div className="space-y-3">
+                  {newDates.map((newDate, index) => (
+                    <div key={index} className="bg-white rounded p-3 border border-teal-300">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <div className="text-xs text-gray-600 mb-1">Old Session {index + 1}</div>
+                          <div className="font-semibold text-red-600">
+                            {dayjs(selectedDates[index]).format("DD MMM YYYY")}
+                          </div>
+                          <div className="text-sm text-gray-600">{convertSlotTo12Hour(selectedBooking?.slot || "")}</div>
+                          <div className="text-sm text-gray-600">{selectedBooking?.carName}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-600 mb-1">New Session {index + 1}</div>
+                          <div className="font-semibold text-green-600">
+                            {newDate.format("DD MMM YYYY")}
+                          </div>
+                          <div className="text-sm text-gray-600">{convertSlotTo12Hour(newTimeSlot)}</div>
+                          <div className="text-sm text-gray-600">
+                            {availableCars.find((car) => car.id === selectedNewCarId)?.carName || "Selected Car"}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {(() => {
+                    const selectedCar = availableCars.find((car) => car.id === selectedNewCarId);
+                    return selectedCar?.assignedDriver && (
+                      <div className="text-sm text-blue-600 bg-blue-50 rounded p-2 border border-blue-200">
+                        <strong>New Driver (all sessions):</strong> {selectedCar.assignedDriver.name}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             )}

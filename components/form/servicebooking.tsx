@@ -49,6 +49,7 @@ type ServiceBookingFormData = {
   selectedService?: FormService;
   totalAmount: number;
   discount?: number;
+  advanceAmount?: number;
   notes: string;
 };
 
@@ -62,6 +63,7 @@ const ServiceBookingForm = () => {
     null
   );
   const [discount, setDiscount] = useState<number>(0);
+  const [advanceAmount, setAdvanceAmount] = useState<number>(0);
   const [customerData, setCustomerData] = useState<Customer | null>(null);
   const [showCreateUserDrawer, setShowCreateUserDrawer] = useState(false);
   const [newUserName, setNewUserName] = useState("");
@@ -115,6 +117,7 @@ const ServiceBookingForm = () => {
       servicePrice: 0,
       totalAmount: 0,
       discount: 0,
+      advanceAmount: 0,
       notes: "",
     },
   });
@@ -329,6 +332,10 @@ const ServiceBookingForm = () => {
       errors.push("Please select a service to calculate the booking amount");
     }
 
+    if (formValues.advanceAmount && formValues.advanceAmount > formValues.totalAmount) {
+      errors.push("Advance amount cannot be greater than total amount");
+    }
+
     return {
       isValid: errors.length == 0,
       errors,
@@ -394,6 +401,10 @@ const ServiceBookingForm = () => {
       const bookingServiceData = serviceResponse.data as { createBookingService?: { id: number } };
       const bookingServiceId = bookingServiceData.createBookingService?.id;
 
+      if (!bookingServiceId) {
+        throw new Error("Failed to get booking service ID from response");
+      }
+
       // Create license application for NEW_LICENSE service type
       if (data.selectedService?.serviceType === "NEW_LICENSE" && bookingServiceId) {
         try {
@@ -414,10 +425,47 @@ const ServiceBookingForm = () => {
         }
       }
 
-      return serviceResponse;
+      return { serviceResponse, bookingServiceId };
     },
-    onSuccess: () => {
-      toast.success("Service booking created successfully!");
+    onSuccess: async (data: { serviceResponse: unknown; bookingServiceId: number }) => {
+      // If advance amount is provided, create service payment
+      if (pendingData?.advanceAmount && pendingData.advanceAmount > 0) {
+        try {
+          const paymentNumber = `SPAY${data.bookingServiceId}1${Date.now()}`;
+          
+          await ApiCall({
+            query: `mutation CreateServicePayment($inputType: CreateServicePaymentInput!) {
+              createServicePayment(inputType: $inputType) {
+                id
+                paymentNumber
+                amount
+                status
+              }
+            }`,
+            variables: {
+              inputType: {
+                bookingServiceId: data.bookingServiceId,
+                userId: customerData?.id,
+                amount: pendingData.advanceAmount,
+                paymentMethod: "CASH",
+                transactionId: "",
+                installmentNumber: 1,
+                totalInstallments: 1,
+                notes: "Advance payment during service booking",
+                paymentNumber: paymentNumber,
+              },
+            },
+          });
+          
+          toast.success("Service booking created and advance payment recorded successfully!");
+        } catch (error) {
+          console.error("Failed to create service payment:", error);
+          toast.warning("Service booking created, but advance payment recording failed. Please add payment manually.");
+        }
+      } else {
+        toast.success("Service booking created successfully!");
+      }
+      
       setShowConfirmModal(false);
       router.push("/mtadmin/servicebooking");
     },
@@ -720,6 +768,48 @@ const ServiceBookingForm = () => {
                       </p>
                     </div>
                   )}
+
+                  {/* Advance Payment Section */}
+                  <div className="mt-6 pt-6 border-t border-gray-200">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Advance Payment (₹)
+                    </label>
+                    <Input
+                      type="number"
+                      size="large"
+                      placeholder="Enter advance amount"
+                      min={0}
+                      max={formValues.totalAmount}
+                      value={advanceAmount || ""}
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value) || 0;
+                        setAdvanceAmount(value);
+                        setValue("advanceAmount", value);
+                      }}
+                      prefix="₹"
+                      disabled={!selectedService || formValues.totalAmount <= 0}
+                    />
+                    {selectedService && formValues.totalAmount > 0 ? (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Enter advance amount (max: ₹{formValues.totalAmount.toLocaleString("en-IN")})
+                      </p>
+                    ) : (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Please select a service to enter advance payment
+                      </p>
+                    )}
+                  </div>
+
+                  {advanceAmount > 0 && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <p className="text-sm font-semibold text-blue-800 mb-2">
+                        Advance: ₹{advanceAmount.toLocaleString("en-IN")}
+                      </p>
+                      <p className="text-xs text-blue-700">
+                        • Remaining: ₹{(formValues.totalAmount - advanceAmount).toLocaleString("en-IN")}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -806,6 +896,28 @@ const ServiceBookingForm = () => {
                         : "Service booking fee"}
                     </p>
                   </div>
+
+                  {/* Advance and Remaining Breakdown */}
+                  {advanceAmount > 0 && (
+                    <div className="space-y-2 pb-4 border-b border-gray-200">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600 font-medium">
+                          Advance Payment:
+                        </span>
+                        <span className="font-bold text-green-600">
+                          ₹{advanceAmount.toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600 font-medium">
+                          Remaining:
+                        </span>
+                        <span className="font-bold text-orange-600">
+                          ₹{(formValues.totalAmount - advanceAmount).toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Submit Button */}
                   <Button
@@ -965,8 +1077,9 @@ const ServiceBookingForm = () => {
               </div>
             )}
 
+            {/* Payment Details */}
             <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-4 border-2 border-blue-300">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between mb-2">
                 <span className="text-xl font-bold text-gray-900">
                   Total Amount
                 </span>
@@ -975,6 +1088,29 @@ const ServiceBookingForm = () => {
                 </span>
               </div>
             </div>
+
+            {/* Advance Payment Details */}
+            {pendingData.advanceAmount && pendingData.advanceAmount > 0 && (
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                <h3 className="font-bold text-gray-900 mb-3">
+                  Payment Breakdown
+                </h3>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-700">Advance Payment:</span>
+                    <span className="text-green-600 font-semibold">
+                      ₹{pendingData.advanceAmount.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-700">Remaining Amount:</span>
+                    <span className="text-orange-600 font-semibold">
+                      ₹{(pendingData.totalAmount - pendingData.advanceAmount).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {pendingData.notes && (
               <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">

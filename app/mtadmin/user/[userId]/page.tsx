@@ -229,7 +229,7 @@ const UserDetailPage = ({ params }: { params: Promise<{ userId: string }> }) => 
       render: (_, record) => (
         <div>
           <div className="font-medium">{record.date}</div>
-          <div className="text-xs text-gray-500">{record.slot}</div>
+          <div className="text-xs text-gray-500">{convertSlotTo12Hour(record.slot)}</div>
         </div>
       ),
     },
