@@ -29,6 +29,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 import { useQuery } from "@tanstack/react-query";
 import { getUserById } from "@/services/user.api";
+import { convertSlotTo12Hour } from "@/utils/time-format";
 
 const { TextArea } = Input;
 

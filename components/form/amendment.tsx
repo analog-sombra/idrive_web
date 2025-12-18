@@ -38,6 +38,7 @@ import {
 import dayjs, { Dayjs } from "dayjs";
 import utc from "dayjs/plugin/utc";
 import type { AmendmentFormData, AmendmentAction } from "@/schema/amendment";
+import { convertSlotTo12Hour } from "@/utils/time-format";
 
 dayjs.extend(utc);
 
@@ -173,7 +174,7 @@ const fetchBookingsWithSessions = async (
     // Fetch sessions for each booking
     const bookingsWithSessions = await Promise.all(
       bookings.map(async (booking: Booking) => {
-        const sessionsResponse = await ApiCall({
+        const sessionsResponse = await ApiCall<GetAllBookingSessionResponse>({
           query: `query GetAllBookingSession($whereSearchInput: WhereBookingSessionSearchInput!) {
             getAllBookingSession(whereSearchInput: $whereSearchInput) {
               id
@@ -369,7 +370,7 @@ const AmendmentForm = () => {
 
     // Fetch all sessions for this car to block already booked dates
     try {
-      const carSessionsResponse = await ApiCall({
+      const carSessionsResponse = await ApiCall<GetAllBookingSessionResponse>({
         query: `query GetAllBookingSession($whereSearchInput: WhereBookingSessionSearchInput!) {
           getAllBookingSession(whereSearchInput: $whereSearchInput) {
             id
@@ -602,7 +603,7 @@ const AmendmentForm = () => {
 
       // Fetch bookings for ALL calculated dates and the selected time slot
       const bookedSessionsPromises = newDates.map((date) =>
-        ApiCall({
+        ApiCall<GetAllBookingSessionResponse>({
           query: `query GetAllBookingSession($whereSearchInput: WhereBookingSessionSearchInput!) {
             getAllBookingSession(whereSearchInput: $whereSearchInput) {
               carId
