@@ -274,6 +274,7 @@ const CarScheduler = () => {
           },
         },
       });
+      console.log("Fetched booking sessions:", response);
       return response;
     },
     enabled: schoolId > 0,
@@ -555,7 +556,7 @@ const CarScheduler = () => {
           (session) =>
             dayjs(session.sessionDate).isSame(selectedDate, "day") &&
             session.slot == slot &&
-            session.status !== "CANCELLED"
+            !["CANCELLED", "HOLD", "NO_SHOW", "EDITED"].includes(session.status)
         );
       }
 
@@ -579,7 +580,7 @@ const CarScheduler = () => {
           (s) =>
             dayjs(s.sessionDate).isSame(selectedDate, "day") &&
             s.slot == slot &&
-            s.status !== "CANCELLED"
+            !["CANCELLED", "HOLD", "NO_SHOW", "EDITED"].includes(s.status)
         );
         if (session) {
           return { booking, session };
@@ -597,7 +598,7 @@ const CarScheduler = () => {
     car.bookings.forEach((booking) => {
       if (booking.sessions) {
         const sessions = booking.sessions.filter(
-          (s) => s.slot == slot && s.status !== "CANCELLED"
+          (s) => s.slot == slot && !["CANCELLED", "HOLD", "NO_SHOW", "EDITED"].includes(s.status)
         );
         allSlotSessions.push(...sessions);
       }

@@ -535,7 +535,7 @@ const BookingForm = () => {
             .filter(
               (session: BookingSession) =>
                 session.booking?.carId == selectedCarId &&
-                session.status !== "CANCELLED"
+                !["CANCELLED", "HOLD", "NO_SHOW", "EDITED"].includes(session.status)
             )
             .map((session: BookingSession) => session.slot);
 
