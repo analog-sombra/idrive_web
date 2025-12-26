@@ -9,7 +9,16 @@ import { useState, useEffect } from "react";
 import { TextInput } from "./inputfields/textinput";
 import { TaxtAreaInput } from "./inputfields/textareainput";
 import { MultiSelect } from "./inputfields/multiselect";
-import { Modal, Button, Tag, Checkbox, Spin, Drawer, Input, Select } from "antd";
+import {
+  Modal,
+  Button,
+  Tag,
+  Checkbox,
+  Spin,
+  Drawer,
+  Input,
+  Select,
+} from "antd";
 import { getCookie } from "cookies-next";
 import { convertSlotTo12Hour } from "@/utils/time-format";
 
@@ -38,6 +47,7 @@ import dayjs, { Dayjs } from "dayjs";
 import utc from "dayjs/plugin/utc";
 import { DatePicker } from "antd";
 import type { BookingFormData, Customer } from "@/schema/booking";
+import { encryptURLData } from "@/utils/methods";
 
 // Extend dayjs with UTC plugin
 dayjs.extend(utc);
@@ -171,7 +181,8 @@ const BookingForm = () => {
 
   // State declarations
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [pendingData, setPendingData] = useState<ExtendedBookingFormData | null>(null);
+  const [pendingData, setPendingData] =
+    useState<ExtendedBookingFormData | null>(null);
   const [selectedCourse, setSelectedCourse] = useState<FormCourse | null>(null);
   const [selectedServices, setSelectedServices] = useState<number[]>([]);
   const [bookingDiscount, setBookingDiscount] = useState<number>(0);
@@ -191,7 +202,9 @@ const BookingForm = () => {
   const [newUserContact2, setNewUserContact2] = useState("");
   const [newUserAddress, setNewUserAddress] = useState("");
   const [newUserPermanentAddress, setNewUserPermanentAddress] = useState("");
-  const [newUserBloodGroup, setNewUserBloodGroup] = useState<string | undefined>(undefined);
+  const [newUserBloodGroup, setNewUserBloodGroup] = useState<
+    string | undefined
+  >(undefined);
   const [newUserDob, setNewUserDob] = useState<Dayjs | null>(null);
   const [sameAsCurrentAddress, setSameAsCurrentAddress] = useState(false);
   const [creatingUser, setCreatingUser] = useState(false);
@@ -364,7 +377,9 @@ const BookingForm = () => {
 
   // Get the current selected car ID (either from URL or dropdown selection)
   const currentCarId = watchedCarId || carIdFromUrl;
-  const selectedCarIdForCourses = currentCarId ? parseInt(currentCarId) : numericCarId;
+  const selectedCarIdForCourses = currentCarId
+    ? parseInt(currentCarId)
+    : numericCarId;
 
   // Fetch courses assigned to the selected car using carCourse table
   const { data: carCoursesResponse, isLoading: loadingCourses } = useQuery({
@@ -374,9 +389,10 @@ const BookingForm = () => {
   });
 
   // Extract courses from carCourse data and filter out soft-deleted and inactive courses
-  const carCourses: CarCourse[] = 
-    (carCoursesResponse as { data?: { getAllCarCourse?: CarCourse[] } })?.data?.getAllCarCourse || [];
-  
+  const carCourses: CarCourse[] =
+    (carCoursesResponse as { data?: { getAllCarCourse?: CarCourse[] } })?.data
+      ?.getAllCarCourse || [];
+
   // Get course IDs to fetch full details
   const courseIds = carCourses
     .filter((cc: CarCourse) => !cc.deletedAt && cc.course)
@@ -389,13 +405,15 @@ const BookingForm = () => {
       if (courseIds.length == 0) return [];
       const coursePromises = courseIds.map((id) => getCourseById(id));
       const results = await Promise.all(coursePromises);
-      return results.map(res => res?.data?.getCourseById).filter(Boolean) as Course[];
+      return results
+        .map((res) => res?.data?.getCourseById)
+        .filter(Boolean) as Course[];
     },
     enabled: courseIds.length > 0,
   });
 
   const fullCourses = courseQueries.data || [];
-  
+
   const courses: FormCourse[] = fullCourses.map((course: Course) => ({
     id: course.id,
     name: course.courseName,
@@ -410,7 +428,9 @@ const BookingForm = () => {
   // Initialize bookingDate form field with default date
   useEffect(() => {
     if (bookingDate) {
-      setValue("bookingDate", bookingDate.format("YYYY-MM-DD"), { shouldValidate: false });
+      setValue("bookingDate", bookingDate.format("YYYY-MM-DD"), {
+        shouldValidate: false,
+      });
     }
   }, [bookingDate, setValue]);
 
@@ -424,7 +444,9 @@ const BookingForm = () => {
   // Watch for car selection changes
   useEffect(() => {
     if (watchedCarId && availableCars.length > 0 && !carIdFromUrl) {
-      const car = availableCars.find((c) => c.id.toString() == watchedCarId.toString());
+      const car = availableCars.find(
+        (c) => c.id.toString() == watchedCarId.toString()
+      );
       if (car) {
         setValue("carName", car.carName, { shouldValidate: false });
         // Fetch full car details including driver info via mutation
@@ -437,8 +459,11 @@ const BookingForm = () => {
   // Watch for course selection changes
   useEffect(() => {
     // Convert courseId to number if it's a string
-    const numericCourseId = typeof watchedCourseId == 'string' ? parseInt(watchedCourseId) : watchedCourseId;
-    
+    const numericCourseId =
+      typeof watchedCourseId == "string"
+        ? parseInt(watchedCourseId)
+        : watchedCourseId;
+
     if (numericCourseId && numericCourseId !== 0 && courses.length > 0) {
       const course = courses.find((c) => c.id == numericCourseId);
       if (course) {
@@ -447,16 +472,27 @@ const BookingForm = () => {
           // Update form with numeric value
           setValue("courseId", numericCourseId, { shouldValidate: false });
           setValue("courseName", course.name, { shouldValidate: false });
-          
+
           // Determine which car data to use
           const carData = numericCarId ? selectedCarData : dropdownSelectedCar;
-          
+
           // Use automatic price if car has automatic transmission, otherwise use manual price
-          const isAutomatic = carData?.transmission === "AUTOMATIC" || carData?.transmission === "AMT" || carData?.transmission === "CVT";
-          const priceToUse = (isAutomatic && course.automaticPrice) ? course.automaticPrice : course.price;
-          
+          const isAutomatic =
+            carData?.transmission === "AUTOMATIC" ||
+            carData?.transmission === "AMT" ||
+            carData?.transmission === "CVT";
+          const priceToUse =
+            isAutomatic && course.automaticPrice
+              ? course.automaticPrice
+              : course.price;
+
           setValue("coursePrice", priceToUse, { shouldValidate: false });
-          calculateTotal(priceToUse, selectedServices, bookingDiscount, serviceDiscount);
+          calculateTotal(
+            priceToUse,
+            selectedServices,
+            bookingDiscount,
+            serviceDiscount
+          );
         }
       }
     } else if (numericCourseId == 0 && selectedCourse) {
@@ -470,15 +506,26 @@ const BookingForm = () => {
     // Only update if both course and car are selected
     if (selectedCourse && (selectedCarData || dropdownSelectedCar)) {
       const carData = numericCarId ? selectedCarData : dropdownSelectedCar;
-      
+
       // Use automatic price if car has automatic transmission, otherwise use manual price
-      const isAutomatic = carData?.transmission === "AUTOMATIC" || carData?.transmission === "AMT" || carData?.transmission === "CVT";
-      const priceToUse = (isAutomatic && selectedCourse.automaticPrice) ? selectedCourse.automaticPrice : selectedCourse.price;
-      
+      const isAutomatic =
+        carData?.transmission === "AUTOMATIC" ||
+        carData?.transmission === "AMT" ||
+        carData?.transmission === "CVT";
+      const priceToUse =
+        isAutomatic && selectedCourse.automaticPrice
+          ? selectedCourse.automaticPrice
+          : selectedCourse.price;
+
       // Only update if price has actually changed
       if (formValues.coursePrice !== priceToUse) {
         setValue("coursePrice", priceToUse, { shouldValidate: false });
-        calculateTotal(priceToUse, selectedServices, bookingDiscount, serviceDiscount);
+        calculateTotal(
+          priceToUse,
+          selectedServices,
+          bookingDiscount,
+          serviceDiscount
+        );
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -531,11 +578,14 @@ const BookingForm = () => {
           );
 
           // Filter out booked slots for the selected car
+          // Ignore CANCELLED, NO_SHOW, HOLD, and EDITED (these slots are available)
           const bookedSlots = bookingSessions
             .filter(
               (session: BookingSession) =>
                 session.booking?.carId == selectedCarId &&
-                !["CANCELLED", "HOLD", "NO_SHOW", "EDITED"].includes(session.status)
+                !["CANCELLED", "NO_SHOW", "HOLD", "EDITED"].includes(
+                  session.status
+                )
             )
             .map((session: BookingSession) => session.slot);
 
@@ -549,10 +599,10 @@ const BookingForm = () => {
               // Extract start time from slot (format: "HH:MM-HH:MM")
               const startTime = slot.split("-")[0];
               const [hours, minutes] = startTime.split(":").map(Number);
-              
+
               // Create a dayjs object for the slot time today
               const slotTime = dayjs().hour(hours).minute(minutes).second(0);
-              
+
               // Only include slots that are in the future
               return slotTime.isAfter(currentTime);
             });
@@ -563,7 +613,7 @@ const BookingForm = () => {
       } else {
         // No car or date selected, filter by current time if showing today's slots
         let availableSlots = allSlots;
-        
+
         if (!bookingDate || dayjs().isSame(bookingDate, "day")) {
           const currentTime = dayjs();
           availableSlots = allSlots.filter((slot) => {
@@ -573,7 +623,7 @@ const BookingForm = () => {
             return slotTime.isAfter(currentTime);
           });
         }
-        
+
         setAvailableTimeSlots(availableSlots);
       }
     }
@@ -780,8 +830,6 @@ const BookingForm = () => {
     );
   };
 
-
-
   // Handle service selection
   const handleServiceToggle = (serviceId: number) => {
     const newSelectedServices = selectedServices.includes(serviceId)
@@ -800,11 +848,21 @@ const BookingForm = () => {
     setValue("selectedServices", servicesData);
 
     // Recalculate total with current discounts using the coursePrice from form (already set based on transmission)
-    calculateTotal(formValues.coursePrice || 0, newSelectedServices, bookingDiscount, serviceDiscount);
+    calculateTotal(
+      formValues.coursePrice || 0,
+      newSelectedServices,
+      bookingDiscount,
+      serviceDiscount
+    );
   };
 
   // Calculate total amount using addonPrice from schoolService
-  const calculateTotal = (coursePrice: number, serviceIds: number[], bookingDisc: number = 0, serviceDisc: number = 0) => {
+  const calculateTotal = (
+    coursePrice: number,
+    serviceIds: number[],
+    bookingDisc: number = 0,
+    serviceDisc: number = 0
+  ) => {
     const servicesTotal = services
       .filter((s) => serviceIds.includes(s.id))
       .reduce((sum, service) => sum + service.addonPrice, 0);
@@ -812,7 +870,7 @@ const BookingForm = () => {
     const subtotal = coursePrice + servicesTotal;
     const totalDiscounts = bookingDisc + serviceDisc;
     const total = Math.max(0, subtotal - totalDiscounts);
-    
+
     setValue("totalAmount", total);
     setValue("bookingDiscount", bookingDisc);
     setValue("serviceDiscount", serviceDisc);
@@ -885,7 +943,10 @@ const BookingForm = () => {
       errors.push("Please select a course to calculate the booking amount");
     }
 
-    if (formValues.advanceAmount && formValues.advanceAmount > formValues.totalAmount) {
+    if (
+      formValues.advanceAmount &&
+      formValues.advanceAmount > formValues.totalAmount
+    ) {
       errors.push("Advance amount cannot be more than the total amount");
     }
 
@@ -896,7 +957,11 @@ const BookingForm = () => {
   };
 
   // Helper function to check if a date/slot is available
-  const isDateSlotAvailable = async (date: string, slot: string, carId: number) => {
+  const isDateSlotAvailable = async (
+    date: string,
+    slot: string,
+    carId: number
+  ) => {
     try {
       const response = await ApiCall<GetAllBookingSessionResponse>({
         query: `query GetAllBookingSession($whereSearchInput: WhereBookingSessionSearchInput!) {
@@ -922,8 +987,14 @@ const BookingForm = () => {
       });
 
       const sessions = response?.data?.getAllBookingSession || [];
-      // Check if there's any booking for this date/slot/car
-      return sessions.length == 0;
+      // Filter out sessions with CANCELLED, NO_SHOW, HOLD, and EDITED status
+      // Only count SCHEDULED and COMPLETED sessions as unavailable
+      const activeSessions = sessions.filter(
+        (session: BookingSession) =>
+          !["CANCELLED", "NO_SHOW", "HOLD", "EDITED"].includes(session.status)
+      );
+      // Slot is available if there are no active sessions
+      return activeSessions.length == 0;
     } catch (error) {
       console.error("Error checking availability:", error);
       return false;
@@ -932,7 +1003,12 @@ const BookingForm = () => {
 
   // Calculate available booking dates (skip booked slots)
   const calculateAvailableDates = async () => {
-    if (!selectedCourse || !formValues.bookingDate || !formValues.slot || !formValues.carId) {
+    if (
+      !selectedCourse ||
+      !formValues.bookingDate ||
+      !formValues.slot ||
+      !formValues.carId
+    ) {
       return [];
     }
 
@@ -995,10 +1071,11 @@ const BookingForm = () => {
     toast.info("Checking date availability...");
     const availableDates = await calculateAvailableDates();
 
-    console.log("Available dates calculated:", availableDates);
 
     if (availableDates.length == 0) {
-      toast.error("No available dates found. Please try a different slot or start date.");
+      toast.error(
+        "No available dates found. Please try a different slot or start date."
+      );
       return;
     }
 
@@ -1008,7 +1085,6 @@ const BookingForm = () => {
       calculatedDates: availableDates,
     };
 
-    console.log("Pending data with dates:", dataWithDates);
 
     setPendingData(dataWithDates);
     setShowConfirmModal(true);
@@ -1041,7 +1117,10 @@ const BookingForm = () => {
             customerName: data.customerName,
             customerEmail: data.customerEmail,
             customerId: customerData?.id,
-            courseId: typeof data.courseId == 'string' ? parseInt(data.courseId) : data.courseId,
+            courseId:
+              typeof data.courseId == "string"
+                ? parseInt(data.courseId)
+                : data.courseId,
             courseName: data.courseName,
             coursePrice: data.coursePrice,
             totalAmount: data.totalAmount,
@@ -1064,10 +1143,11 @@ const BookingForm = () => {
       // Create booking services if services are selected
       if (data.selectedServices && data.selectedServices.length > 0) {
         // Calculate discount per service (divide equally)
-        const discountPerService = data.selectedServices.length > 0 
-          ? (data.serviceDiscount || 0) / data.selectedServices.length 
-          : 0;
-        
+        const discountPerService =
+          data.selectedServices.length > 0
+            ? (data.serviceDiscount || 0) / data.selectedServices.length
+            : 0;
+
         const servicePromises = data.selectedServices.map(async (service) => {
           const serviceResponse = await ApiCall({
             query: `mutation CreateBookingService($inputType: CreateBookingServiceInput!) {
@@ -1092,8 +1172,11 @@ const BookingForm = () => {
 
           // If service is NEW_LICENSE, create license application
           if (service.serviceType === "NEW_LICENSE" && serviceResponse.status) {
-            const bookingServiceData = serviceResponse.data as { createBookingService?: { id: number } };
-            const bookingServiceId = bookingServiceData.createBookingService?.id;
+            const bookingServiceData = serviceResponse.data as {
+              createBookingService?: { id: number };
+            };
+            const bookingServiceId =
+              bookingServiceData.createBookingService?.id;
 
             if (bookingServiceId) {
               try {
@@ -1103,25 +1186,37 @@ const BookingForm = () => {
                 });
 
                 if (!licenseAppResponse.status) {
-                  console.error(`Failed to create license application for service ${service.name}:`, licenseAppResponse.message);
+                  console.error(
+                    `Failed to create license application for service ${service.name}:`,
+                    licenseAppResponse.message
+                  );
                 } else {
-                  console.log(`License application created successfully for service: ${service.name}`);
+                  console.log(
+                    `License application created successfully for service: ${service.name}`
+                  );
                 }
               } catch (error) {
-                console.error(`Error creating license application for service ${service.name}:`, error);
+                console.error(
+                  `Error creating license application for service ${service.name}:`,
+                  error
+                );
               }
             }
           }
 
           return serviceResponse;
         });
-        
+
         // Wait for all booking services to be created
         await Promise.all(servicePromises);
       }
 
       // Create booking sessions based on calculated available dates
-      if (selectedCourse && selectedCourse.courseDays > 0 && data.calculatedDates) {
+      if (
+        selectedCourse &&
+        selectedCourse.courseDays > 0 &&
+        data.calculatedDates
+      ) {
         const sessionPromises: Promise<unknown>[] = [];
 
         // Get driver ID from appropriate car data source
@@ -1157,12 +1252,15 @@ const BookingForm = () => {
 
       return { bookingResponse, createdBookingId: createdBooking.id };
     },
-    onSuccess: async (data: { bookingResponse: unknown; createdBookingId: number }) => {
+    onSuccess: async (data: {
+      bookingResponse: unknown;
+      createdBookingId: number;
+    }) => {
       // If advance amount is provided, create payment
       if (pendingData?.advanceAmount && pendingData.advanceAmount > 0) {
         try {
           const paymentNumber = `PAY${data.createdBookingId}1${Date.now()}`;
-          
+
           await ApiCall({
             query: `mutation CreatePayment($inputType: CreatePaymentInput!) {
               createPayment(inputType: $inputType) {
@@ -1186,18 +1284,24 @@ const BookingForm = () => {
               },
             },
           });
-          
-          toast.success("Booking created and advance payment recorded successfully!");
+
+          toast.success(
+            "Booking created and advance payment recorded successfully!"
+          );
         } catch (error) {
           console.error("Failed to create payment:", error);
-          toast.warning("Booking created, but advance payment recording failed. Please add payment manually.");
+          toast.warning(
+            "Booking created, but advance payment recording failed. Please add payment manually."
+          );
         }
       } else {
         toast.success("Booking, services, and sessions created successfully!");
       }
-      
+
       setShowConfirmModal(false);
-      router.push("/mtadmin/scheduler");
+      // router.push("/mtadmin/scheduler");
+      const encodedId = encryptURLData(data.createdBookingId.toString());
+      router.push(`/mtadmin/bookinglist/${encodedId}`);
     },
     onError: (error: Error) => {
       toast.error(
@@ -1427,7 +1531,9 @@ const BookingForm = () => {
                           required={true}
                           options={availableCars.map((car) => ({
                             value: car.id.toString(),
-                            label: `${car.carName} (${car.assignedDriver?.name || 'No Driver'})`,
+                            label: `${car.carName} (${
+                              car.assignedDriver?.name || "No Driver"
+                            })`,
                           }))}
                           disable={loadingCars || loadingCarDetails}
                         />
@@ -1462,42 +1568,42 @@ const BookingForm = () => {
                       className="w-full"
                       key={typeof window !== "undefined" ? "client" : "server"}
                       disabledDate={(current) => {
-                          if (!current) return false;
+                        if (!current) return false;
 
-                          // Allow dates from tomorrow onwards
-                          if (current.isBefore(dayjs().add(1, "day"), "day")) {
+                        // Allow dates from tomorrow onwards
+                        if (current.isBefore(dayjs().add(1, "day"), "day")) {
+                          return true;
+                        }
+
+                        // Check weekend restriction if school has a weekly holiday
+                        if (schoolData?.weeklyHoliday) {
+                          const dayOfWeek = current.day(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+                          const weeklyHoliday =
+                            schoolData.weeklyHoliday.toUpperCase();
+
+                          const dayMap: { [key: string]: number } = {
+                            SUNDAY: 0,
+                            MONDAY: 1,
+                            TUESDAY: 2,
+                            WEDNESDAY: 3,
+                            THURSDAY: 4,
+                            FRIDAY: 5,
+                            SATURDAY: 6,
+                          };
+
+                          const holidayDay = dayMap[weeklyHoliday];
+                          if (
+                            holidayDay !== undefined &&
+                            dayOfWeek == holidayDay
+                          ) {
                             return true;
                           }
+                        }
 
-                          // Check weekend restriction if school has a weekly holiday
-                          if (schoolData?.weeklyHoliday) {
-                            const dayOfWeek = current.day(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-                            const weeklyHoliday =
-                              schoolData.weeklyHoliday.toUpperCase();
-
-                            const dayMap: { [key: string]: number } = {
-                              SUNDAY: 0,
-                              MONDAY: 1,
-                              TUESDAY: 2,
-                              WEDNESDAY: 3,
-                              THURSDAY: 4,
-                              FRIDAY: 5,
-                              SATURDAY: 6,
-                            };
-
-                            const holidayDay = dayMap[weeklyHoliday];
-                            if (
-                              holidayDay !== undefined &&
-                              dayOfWeek == holidayDay
-                            ) {
-                              return true;
-                            }
-                          }
-
-                          return false;
-                        }}
-                        placeholder="Select date"
-                      />
+                        return false;
+                      }}
+                      placeholder="Select date"
+                    />
                   </div>
 
                   {/* Time Slot Selection - Moved after Date */}
@@ -1692,15 +1798,28 @@ const BookingForm = () => {
                           <div className="text-right">
                             <p className="text-xs text-gray-500">Course Fee</p>
                             <p className="text-2xl font-bold text-blue-600">
-                              ₹{(formValues.coursePrice || selectedCourse.price).toLocaleString("en-IN")}
+                              ₹
+                              {(
+                                formValues.coursePrice || selectedCourse.price
+                              ).toLocaleString("en-IN")}
                             </p>
                             {(() => {
-                              const carData = numericCarId ? selectedCarData : dropdownSelectedCar;
-                              const isAutomatic = carData?.transmission === "AUTOMATIC" || carData?.transmission === "AMT" || carData?.transmission === "CVT";
-                              return isAutomatic && selectedCourse.automaticPrice ? (
-                                <p className="text-xs text-blue-500 mt-1">Automatic Car Price</p>
+                              const carData = numericCarId
+                                ? selectedCarData
+                                : dropdownSelectedCar;
+                              const isAutomatic =
+                                carData?.transmission === "AUTOMATIC" ||
+                                carData?.transmission === "AMT" ||
+                                carData?.transmission === "CVT";
+                              return isAutomatic &&
+                                selectedCourse.automaticPrice ? (
+                                <p className="text-xs text-blue-500 mt-1">
+                                  Automatic Car Price
+                                </p>
                               ) : (
-                                <p className="text-xs text-gray-500 mt-1">Manual Car Price</p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  Manual Car Price
+                                </p>
                               );
                             })()}
                           </div>
@@ -1861,7 +1980,12 @@ const BookingForm = () => {
                       onChange={(e) => {
                         const value = parseFloat(e.target.value) || 0;
                         setBookingDiscount(value);
-                        calculateTotal(formValues.coursePrice || 0, selectedServices, value, serviceDiscount);
+                        calculateTotal(
+                          formValues.coursePrice || 0,
+                          selectedServices,
+                          value,
+                          serviceDiscount
+                        );
                       }}
                       prefix="₹"
                     />
@@ -1883,14 +2007,21 @@ const BookingForm = () => {
                       onChange={(e) => {
                         const value = parseFloat(e.target.value) || 0;
                         setServiceDiscount(value);
-                        calculateTotal(formValues.coursePrice || 0, selectedServices, bookingDiscount, value);
+                        calculateTotal(
+                          formValues.coursePrice || 0,
+                          selectedServices,
+                          bookingDiscount,
+                          value
+                        );
                       }}
                       prefix="₹"
                       disabled={selectedServices.length === 0}
                     />
                     {selectedServices.length > 0 ? (
                       <p className="text-xs text-gray-500 mt-1">
-                        ₹{(serviceDiscount / selectedServices.length).toFixed(2)} per service ({selectedServices.length} selected)
+                        ₹
+                        {(serviceDiscount / selectedServices.length).toFixed(2)}{" "}
+                        per service ({selectedServices.length} selected)
                       </p>
                     ) : (
                       <p className="text-xs text-gray-500 mt-1">
@@ -1902,7 +2033,10 @@ const BookingForm = () => {
                   {(bookingDiscount > 0 || serviceDiscount > 0) && (
                     <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                       <p className="text-sm font-semibold text-green-800 mb-1">
-                        Total Discount: ₹{(bookingDiscount + serviceDiscount).toLocaleString("en-IN")}
+                        Total Discount: ₹
+                        {(bookingDiscount + serviceDiscount).toLocaleString(
+                          "en-IN"
+                        )}
                       </p>
                       {bookingDiscount > 0 && (
                         <p className="text-xs text-green-700">
@@ -1911,7 +2045,12 @@ const BookingForm = () => {
                       )}
                       {serviceDiscount > 0 && selectedServices.length > 0 && (
                         <p className="text-xs text-green-700">
-                          • Services: ₹{serviceDiscount.toLocaleString("en-IN")} (₹{(serviceDiscount / selectedServices.length).toFixed(2)} each)
+                          • Services: ₹{serviceDiscount.toLocaleString("en-IN")}{" "}
+                          (₹
+                          {(serviceDiscount / selectedServices.length).toFixed(
+                            2
+                          )}{" "}
+                          each)
                         </p>
                       )}
                     </div>
@@ -1947,15 +2086,20 @@ const BookingForm = () => {
                           setAdvanceAmount(value);
                           setValue("advanceAmount", value);
                         } else {
-                          toast.error("Advance amount cannot exceed total amount");
+                          toast.error(
+                            "Advance amount cannot exceed total amount"
+                          );
                         }
                       }}
                       prefix="₹"
-                      disabled={!formValues.totalAmount || formValues.totalAmount <= 0}
+                      disabled={
+                        !formValues.totalAmount || formValues.totalAmount <= 0
+                      }
                     />
                     {formValues.totalAmount > 0 ? (
                       <p className="text-xs text-gray-500 mt-1">
-                        Maximum advance: ₹{formValues.totalAmount.toLocaleString("en-IN")}
+                        Maximum advance: ₹
+                        {formValues.totalAmount.toLocaleString("en-IN")}
                       </p>
                     ) : (
                       <p className="text-xs text-gray-500 mt-1">
@@ -1970,7 +2114,10 @@ const BookingForm = () => {
                         Advance: ₹{advanceAmount.toLocaleString("en-IN")}
                       </p>
                       <p className="text-xs text-blue-700">
-                        • Remaining: ₹{(formValues.totalAmount - advanceAmount).toLocaleString("en-IN")}
+                        • Remaining: ₹
+                        {(
+                          formValues.totalAmount - advanceAmount
+                        ).toLocaleString("en-IN")}
                       </p>
                     </div>
                   )}
@@ -2052,17 +2199,30 @@ const BookingForm = () => {
                             {selectedCourse.name}
                           </span>
                           {(() => {
-                            const carData = numericCarId ? selectedCarData : dropdownSelectedCar;
-                            const isAutomatic = carData?.transmission === "AUTOMATIC" || carData?.transmission === "AMT" || carData?.transmission === "CVT";
-                            return isAutomatic && selectedCourse.automaticPrice ? (
-                              <div className="text-xs text-blue-500 mt-1">Automatic</div>
+                            const carData = numericCarId
+                              ? selectedCarData
+                              : dropdownSelectedCar;
+                            const isAutomatic =
+                              carData?.transmission === "AUTOMATIC" ||
+                              carData?.transmission === "AMT" ||
+                              carData?.transmission === "CVT";
+                            return isAutomatic &&
+                              selectedCourse.automaticPrice ? (
+                              <div className="text-xs text-blue-500 mt-1">
+                                Automatic
+                              </div>
                             ) : (
-                              <div className="text-xs text-gray-500 mt-1">Manual</div>
+                              <div className="text-xs text-gray-500 mt-1">
+                                Manual
+                              </div>
                             );
                           })()}
                         </div>
                         <span className="font-bold text-blue-600">
-                          ₹{(formValues.coursePrice || selectedCourse.price).toLocaleString("en-IN")}
+                          ₹
+                          {(
+                            formValues.coursePrice || selectedCourse.price
+                          ).toLocaleString("en-IN")}
                         </span>
                       </div>
                     </div>
@@ -2098,12 +2258,22 @@ const BookingForm = () => {
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-600">Subtotal:</span>
                         <span className="font-semibold text-gray-900">
-                          ₹{((formValues.coursePrice || selectedCourse?.price || 0) + services.filter(s => selectedServices.includes(s.id)).reduce((sum, s) => sum + s.addonPrice, 0)).toLocaleString("en-IN")}
+                          ₹
+                          {(
+                            (formValues.coursePrice ||
+                              selectedCourse?.price ||
+                              0) +
+                            services
+                              .filter((s) => selectedServices.includes(s.id))
+                              .reduce((sum, s) => sum + s.addonPrice, 0)
+                          ).toLocaleString("en-IN")}
                         </span>
                       </div>
                       {bookingDiscount > 0 && (
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-green-600">Booking Discount:</span>
+                          <span className="text-green-600">
+                            Booking Discount:
+                          </span>
                           <span className="font-semibold text-green-600">
                             -₹{bookingDiscount.toLocaleString("en-IN")}
                           </span>
@@ -2111,7 +2281,9 @@ const BookingForm = () => {
                       )}
                       {serviceDiscount > 0 && (
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-green-600">Service Discount:</span>
+                          <span className="text-green-600">
+                            Service Discount:
+                          </span>
                           <span className="font-semibold text-green-600">
                             -₹{serviceDiscount.toLocaleString("en-IN")}
                           </span>
@@ -2131,8 +2303,10 @@ const BookingForm = () => {
                       </span>
                     </div>
                     <p className="text-xs text-gray-600">
-                      {(bookingDiscount > 0 || serviceDiscount > 0) 
-                        ? `After ₹${(bookingDiscount + serviceDiscount).toLocaleString("en-IN")} discount`
+                      {bookingDiscount > 0 || serviceDiscount > 0
+                        ? `After ₹${(
+                            bookingDiscount + serviceDiscount
+                          ).toLocaleString("en-IN")} discount`
                         : "Including all courses and services"}
                     </p>
                   </div>
@@ -2153,7 +2327,10 @@ const BookingForm = () => {
                           Remaining Amount
                         </span>
                         <span className="text-sm font-semibold text-green-800">
-                          ₹{(formValues.totalAmount - advanceAmount).toLocaleString("en-IN")}
+                          ₹
+                          {(
+                            formValues.totalAmount - advanceAmount
+                          ).toLocaleString("en-IN")}
                         </span>
                       </div>
                     </div>
@@ -2311,39 +2488,61 @@ const BookingForm = () => {
             </div>
 
             {/* Discount Information */}
-            {((pendingData.bookingDiscount && pendingData.bookingDiscount > 0) || 
-              (pendingData.serviceDiscount && pendingData.serviceDiscount > 0)) && (
+            {((pendingData.bookingDiscount &&
+              pendingData.bookingDiscount > 0) ||
+              (pendingData.serviceDiscount &&
+                pendingData.serviceDiscount > 0)) && (
               <div className="bg-green-50 rounded-lg p-4 border border-green-200">
                 <h3 className="font-bold text-gray-900 mb-3">
                   Discount Applied
                 </h3>
                 <div className="space-y-2">
-                  {pendingData.bookingDiscount && pendingData.bookingDiscount > 0 && (
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-700">Booking Discount:</span>
-                      <span className="text-green-600 font-semibold">
-                        -₹{pendingData.bookingDiscount.toLocaleString("en-IN")}
-                      </span>
-                    </div>
-                  )}
-                  {pendingData.serviceDiscount && pendingData.serviceDiscount > 0 && pendingData.selectedServices && (
-                    <div>
+                  {pendingData.bookingDiscount &&
+                    pendingData.bookingDiscount > 0 && (
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-700">Service Discount:</span>
+                        <span className="text-gray-700">Booking Discount:</span>
                         <span className="text-green-600 font-semibold">
-                          -₹{pendingData.serviceDiscount.toLocaleString("en-IN")}
+                          -₹
+                          {pendingData.bookingDiscount.toLocaleString("en-IN")}
                         </span>
                       </div>
-                      <p className="text-xs text-gray-600 mt-1">
-                        ₹{(pendingData.serviceDiscount / pendingData.selectedServices.length).toFixed(2)} per service
-                      </p>
-                    </div>
-                  )}
+                    )}
+                  {pendingData.serviceDiscount &&
+                    pendingData.serviceDiscount > 0 &&
+                    pendingData.selectedServices && (
+                      <div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-700">
+                            Service Discount:
+                          </span>
+                          <span className="text-green-600 font-semibold">
+                            -₹
+                            {pendingData.serviceDiscount.toLocaleString(
+                              "en-IN"
+                            )}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-600 mt-1">
+                          ₹
+                          {(
+                            pendingData.serviceDiscount /
+                            pendingData.selectedServices.length
+                          ).toFixed(2)}{" "}
+                          per service
+                        </p>
+                      </div>
+                    )}
                   <div className="pt-2 border-t border-green-200">
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-gray-900">Total Discount:</span>
+                      <span className="font-semibold text-gray-900">
+                        Total Discount:
+                      </span>
                       <span className="font-bold text-green-600">
-                        -₹{((pendingData.bookingDiscount || 0) + (pendingData.serviceDiscount || 0)).toLocaleString("en-IN")}
+                        -₹
+                        {(
+                          (pendingData.bookingDiscount || 0) +
+                          (pendingData.serviceDiscount || 0)
+                        ).toLocaleString("en-IN")}
                       </span>
                     </div>
                   </div>
@@ -2352,36 +2551,48 @@ const BookingForm = () => {
             )}
 
             {/* Show Calculated Booking Dates */}
-            {pendingData.calculatedDates && pendingData.calculatedDates.length > 0 ? (
+            {pendingData.calculatedDates &&
+            pendingData.calculatedDates.length > 0 ? (
               <div className="bg-amber-50 rounded-lg p-4 border-2 border-amber-300">
                 <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
                   <CalendarOutlined className="text-amber-600" />
-                  Scheduled Session Dates ({pendingData.calculatedDates.length} days)
+                  Scheduled Session Dates ({
+                    pendingData.calculatedDates.length
+                  }{" "}
+                  days)
                 </h3>
                 <div className="max-h-48 overflow-y-auto">
                   <div className="grid grid-cols-2 gap-2">
-                    {pendingData.calculatedDates.map((date: string, index: number) => (
-                      <div
-                        key={date}
-                        className="bg-white rounded px-3 py-2 border border-amber-200 text-sm"
-                      >
-                        <span className="font-semibold text-gray-700">Day {index + 1}:</span>{" "}
-                        <span className="text-gray-900">{dayjs(date).format("DD MMM YYYY")}</span>
-                      </div>
-                    ))}
+                    {pendingData.calculatedDates.map(
+                      (date: string, index: number) => (
+                        <div
+                          key={date}
+                          className="bg-white rounded px-3 py-2 border border-amber-200 text-sm"
+                        >
+                          <span className="font-semibold text-gray-700">
+                            Day {index + 1}:
+                          </span>{" "}
+                          <span className="text-gray-900">
+                            {dayjs(date).format("DD MMM YYYY")}
+                          </span>
+                        </div>
+                      )
+                    )}
                   </div>
                 </div>
                 <div className="mt-3 pt-3 border-t border-amber-200">
                   <p className="text-xs text-amber-800 flex items-center gap-1">
                     <span className="font-semibold">⚠️ Note:</span>
-                    Already booked dates have been automatically skipped. Please review the dates before confirming.
+                    Already booked dates have been automatically skipped. Please
+                    review the dates before confirming.
                   </p>
                 </div>
               </div>
             ) : (
               <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
                 <p className="text-sm text-yellow-800">
-                  <span className="font-semibold">⚠️ Warning:</span> No session dates calculated. This might be an error.
+                  <span className="font-semibold">⚠️ Warning:</span> No session
+                  dates calculated. This might be an error.
                 </p>
               </div>
             )}
@@ -2406,20 +2617,28 @@ const BookingForm = () => {
                 </h3>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-700">Advance Amount:</span>
+                    <span className="text-sm text-gray-700">
+                      Advance Amount:
+                    </span>
                     <span className="text-lg font-bold text-green-600">
                       ₹{pendingData.advanceAmount.toLocaleString("en-IN")}
                     </span>
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t border-green-200">
-                    <span className="text-sm text-gray-700">Remaining Balance:</span>
+                    <span className="text-sm text-gray-700">
+                      Remaining Balance:
+                    </span>
                     <span className="text-lg font-bold text-orange-600">
-                      ₹{(pendingData.totalAmount - pendingData.advanceAmount).toLocaleString("en-IN")}
+                      ₹
+                      {(
+                        pendingData.totalAmount - pendingData.advanceAmount
+                      ).toLocaleString("en-IN")}
                     </span>
                   </div>
                 </div>
                 <p className="text-xs text-green-700 mt-3 bg-white rounded px-2 py-1">
-                  💡 This advance payment will be recorded immediately upon booking confirmation
+                  💡 This advance payment will be recorded immediately upon
+                  booking confirmation
                 </p>
               </div>
             )}
@@ -2498,8 +2717,10 @@ const BookingForm = () => {
 
           {/* Personal Information */}
           <div className="border-b pb-4">
-            <h4 className="font-semibold text-gray-900 mb-3">Personal Information</h4>
-            
+            <h4 className="font-semibold text-gray-900 mb-3">
+              Personal Information
+            </h4>
+
             <div className="space-y-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -2589,6 +2810,10 @@ const BookingForm = () => {
                     { label: "AB-", value: "AB-" },
                     { label: "O+", value: "O+" },
                     { label: "O-", value: "O-" },
+                    {
+                      label: "Unknown",
+                      value: "Unknown",
+                    },
                   ]}
                 />
               </div>
@@ -2597,8 +2822,10 @@ const BookingForm = () => {
 
           {/* Contact Information */}
           <div className="border-b pb-4">
-            <h4 className="font-semibold text-gray-900 mb-3">Contact Information</h4>
-            
+            <h4 className="font-semibold text-gray-900 mb-3">
+              Contact Information
+            </h4>
+
             <div className="space-y-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -2637,8 +2864,10 @@ const BookingForm = () => {
 
           {/* Address Information */}
           <div className="border-b pb-4">
-            <h4 className="font-semibold text-gray-900 mb-3">Address Information</h4>
-            
+            <h4 className="font-semibold text-gray-900 mb-3">
+              Address Information
+            </h4>
+
             <div className="space-y-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -2693,7 +2922,9 @@ const BookingForm = () => {
           </div>
 
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h4 className="font-semibold text-blue-900 mb-2">Account Details</h4>
+            <h4 className="font-semibold text-blue-900 mb-2">
+              Account Details
+            </h4>
             <ul className="text-sm text-blue-800 space-y-1">
               <li>
                 • <strong>Role:</strong> USER

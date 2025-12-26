@@ -219,7 +219,7 @@ const EditDriverPage = ({
                   name="email"
                   rules={[
                     { type: "email", message: "Please enter valid email" },
-                    { required: false }
+                    { required: false },
                   ]}
                 >
                   <Input size="large" placeholder="Enter email address" />
@@ -283,6 +283,7 @@ const EditDriverPage = ({
                       { label: "AB-", value: "AB-" },
                       { label: "O+", value: "O+" },
                       { label: "O-", value: "O-" },
+                      { label: "Unknown", value: "Unknown" },
                     ]}
                   />
                 </Form.Item>

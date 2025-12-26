@@ -274,7 +274,6 @@ const CarScheduler = () => {
           },
         },
       });
-      console.log("Fetched booking sessions:", response);
       return response;
     },
     enabled: schoolId > 0,
@@ -548,15 +547,14 @@ const CarScheduler = () => {
   // Check if a slot is booked for a specific car on the selected date
   const isSlotBooked = (car: EnrichedCar, slot: string): boolean => {
     return car.bookings.some((booking) => {
-      if (booking.slot !== slot) return false;
-
+      // Don't check booking.slot as it may have been edited - check actual session.slot
       // Check if selected date falls within booking sessions
       if (booking.sessions) {
         return booking.sessions.some(
           (session) =>
             dayjs(session.sessionDate).isSame(selectedDate, "day") &&
             session.slot == slot &&
-            !["CANCELLED", "HOLD", "NO_SHOW", "EDITED"].includes(session.status)
+            !["CANCELLED", "NO_SHOW", "HOLD", "EDITED"].includes(session.status)
         );
       }
 
@@ -580,7 +578,7 @@ const CarScheduler = () => {
           (s) =>
             dayjs(s.sessionDate).isSame(selectedDate, "day") &&
             s.slot == slot &&
-            !["CANCELLED", "HOLD", "NO_SHOW", "EDITED"].includes(s.status)
+            !["CANCELLED", "NO_SHOW", "HOLD", "EDITED"].includes(s.status)
         );
         if (session) {
           return { booking, session };
@@ -598,7 +596,7 @@ const CarScheduler = () => {
     car.bookings.forEach((booking) => {
       if (booking.sessions) {
         const sessions = booking.sessions.filter(
-          (s) => s.slot == slot && !["CANCELLED", "HOLD", "NO_SHOW", "EDITED"].includes(s.status)
+          (s) => s.slot == slot && !["CANCELLED", "NO_SHOW", "HOLD", "EDITED"].includes(s.status)
         );
         allSlotSessions.push(...sessions);
       }

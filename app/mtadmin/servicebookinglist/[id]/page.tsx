@@ -19,7 +19,7 @@ import {
   Col,
   InputNumber,
 } from "antd";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { getBookingServiceById } from "@/services/service.booking.api";
 import type { BookingService } from "@/services/service.booking.api";
@@ -47,18 +47,21 @@ import isSameOrAfter from "dayjs/plugin/isSameOrAfter";
 import { toast } from "react-toastify";
 import { getCookie } from "cookies-next";
 import { useQueryClient } from "@tanstack/react-query";
+import { decryptURLData, encryptURLData } from "@/utils/methods";
 
 dayjs.extend(isSameOrAfter);
 
-interface ServiceBookingViewPageProps {
-  params: Promise<{ id: string }>;
-}
-
-const ServiceBookingViewPage = ({ params }: ServiceBookingViewPageProps) => {
+const ServiceBookingViewPage = () => {
   const router = useRouter();
+  const params = useParams();
+  const encServiceBookingId: string = params.id as string;
+  const bookingServiceId = parseInt(
+    decryptURLData(encServiceBookingId, router)
+  );
+
   const queryClient = useQueryClient();
   const userId = parseInt(getCookie("id")?.toString() || "0");
-  const [bookingServiceId, setBookingServiceId] = useState<number | null>(null);
+  // const [bookingServiceId, setBookingServiceId] = useState<number | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isDLModalOpen, setIsDLModalOpen] = useState(false);
@@ -79,9 +82,9 @@ const ServiceBookingViewPage = ({ params }: ServiceBookingViewPageProps) => {
   const [testResult, setTestResult] = useState<string>("");
 
   // Unwrap params
-  useEffect(() => {
-    params.then((p) => setBookingServiceId(parseInt(p.id)));
-  }, [params]);
+  // useEffect(() => {
+  //   params.then((p) => setBookingServiceId(parseInt(p.id)));
+  // }, [params]);
 
   // Fetch server date time
   const { data: serverDateTimeResponse } = useQuery({
@@ -118,9 +121,13 @@ const ServiceBookingViewPage = ({ params }: ServiceBookingViewPageProps) => {
 
   const bookingService: BookingService | undefined =
     bookingServiceResponse?.data?.getBookingServiceById;
-  const servicePayments: ServicePayment[] = servicePaymentsData?.data?.getAllServicePayment || [];
-  const totalPaidService = totalPaidServiceData?.data?.getTotalPaidServiceAmount || 0;
-  const remainingServiceAmount = bookingService ? bookingService.price - totalPaidService : 0;
+  const servicePayments: ServicePayment[] =
+    servicePaymentsData?.data?.getAllServicePayment || [];
+  const totalPaidService =
+    totalPaidServiceData?.data?.getTotalPaidServiceAmount || 0;
+  const remainingServiceAmount = bookingService
+    ? bookingService.price - totalPaidService
+    : 0;
 
   // Create payment mutation
   const createPaymentMutation = useMutation({
@@ -139,8 +146,12 @@ const ServiceBookingViewPage = ({ params }: ServiceBookingViewPageProps) => {
     },
     onSuccess: () => {
       toast.success("Payment recorded successfully!");
-      queryClient.invalidateQueries({ queryKey: ["service-payments", bookingServiceId] });
-      queryClient.invalidateQueries({ queryKey: ["service-payment-total", bookingServiceId] });
+      queryClient.invalidateQueries({
+        queryKey: ["service-payments", bookingServiceId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["service-payment-total", bookingServiceId],
+      });
       setIsPaymentModalOpen(false);
       paymentForm.resetFields();
     },
@@ -159,7 +170,7 @@ const ServiceBookingViewPage = ({ params }: ServiceBookingViewPageProps) => {
     notes: string;
   }) => {
     if (!bookingService) return;
-    
+
     const paymentNumber = `SPAY${bookingService.id}${Date.now()}`;
     createPaymentMutation.mutate({
       bookingServiceId: bookingService.id,
@@ -210,7 +221,6 @@ const ServiceBookingViewPage = ({ params }: ServiceBookingViewPageProps) => {
       toast.error(error.message || "Failed to update license application");
     },
   });
-  console.log("Booking Service Response:", bookingServiceResponse);
 
   // Mutation for updating to DL_PENDING
   const { mutate: updateToDLPending, isPending: isUpdatingDLPending } =
@@ -769,7 +779,9 @@ const ServiceBookingViewPage = ({ params }: ServiceBookingViewPageProps) => {
           <>
             <Card className="shadow-sm mb-6">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold text-gray-900">Payment History</h2>
+                <h2 className="text-xl font-bold text-gray-900">
+                  Payment History
+                </h2>
                 <Button
                   type="primary"
                   icon={<PlusOutlined />}
@@ -830,7 +842,8 @@ const ServiceBookingViewPage = ({ params }: ServiceBookingViewPageProps) => {
                     dataIndex: "paymentDate",
                     key: "paymentDate",
                     width: 130,
-                    render: (date) => new Date(date).toLocaleDateString("en-IN"),
+                    render: (date) =>
+                      new Date(date).toLocaleDateString("en-IN"),
                   },
                   {
                     title: "Amount",
@@ -935,11 +948,13 @@ const ServiceBookingViewPage = ({ params }: ServiceBookingViewPageProps) => {
             </Button>
             {bookingService.booking && (
               <Button
-                onClick={() =>
-                  router.push(
-                    `/mtadmin/bookinglist/${bookingService.booking!.id}`
-                  )
-                }
+                onClick={() => {
+                  if (bookingService.booking == null) return;
+                  const encodedId = encryptURLData(
+                    bookingService.booking.id.toString()
+                  );
+                  router.push(`/mtadmin/bookinglist/${encodedId}`);
+                }}
               >
                 View Related Booking
               </Button>
@@ -1194,7 +1209,9 @@ const ServiceBookingViewPage = ({ params }: ServiceBookingViewPageProps) => {
           <Form.Item
             label="Payment Method"
             name="paymentMethod"
-            rules={[{ required: true, message: "Please select payment method" }]}
+            rules={[
+              { required: true, message: "Please select payment method" },
+            ]}
           >
             <Select size="large" placeholder="Select payment method">
               <Select.Option value="CASH">Cash</Select.Option>
@@ -1205,14 +1222,8 @@ const ServiceBookingViewPage = ({ params }: ServiceBookingViewPageProps) => {
             </Select>
           </Form.Item>
 
-          <Form.Item
-            label="Transaction ID (Optional)"
-            name="transactionId"
-          >
-            <Input
-              size="large"
-              placeholder="Enter transaction/reference ID"
-            />
+          <Form.Item label="Transaction ID (Optional)" name="transactionId">
+            <Input size="large" placeholder="Enter transaction/reference ID" />
           </Form.Item>
 
           <Form.Item
@@ -1254,10 +1265,7 @@ const ServiceBookingViewPage = ({ params }: ServiceBookingViewPageProps) => {
 
           <Form.Item className="mb-0">
             <Space className="w-full justify-end">
-              <Button
-                size="large"
-                onClick={() => setIsPaymentModalOpen(false)}
-              >
+              <Button size="large" onClick={() => setIsPaymentModalOpen(false)}>
                 Cancel
               </Button>
               <Button

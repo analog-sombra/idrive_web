@@ -100,7 +100,6 @@ export const createPayment = async (inputType: {
   notes?: string;
   paymentNumber: string;
 }) => {
-  console.log("Creating payment with input:", inputType);
   return await ApiCall({
     query: CREATE_PAYMENT,
     variables: { inputType },

@@ -228,7 +228,6 @@ export const getPaginatedUsers = async (variables: {
 };
 
 export const getUserById = async (id: number) => {
-  console.log("Fetching user with ID:", id);
   return ApiCall<SingleUser>({
     query: GET_USER_BY_ID,
     variables: { id },
@@ -299,7 +298,6 @@ export const updateUser = async (updateData: {
   updatedById?: number;
 }) => {
   const { id, ...updateType } = updateData;
-  console.log("Updating user with ID:", id, "Data:", updateType);
   return ApiCall<UpdateUserResponse>({
     query: UPDATE_USER,
     variables: { id, updateType: { ...updateType } },

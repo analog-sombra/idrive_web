@@ -288,6 +288,7 @@ const AddDriverPage = () => {
                         { label: "AB-", value: "AB-" },
                         { label: "O+", value: "O+" },
                         { label: "O-", value: "O-" },
+                        { label: "Unknown", value: "Unknown" },
                       ]}
                     />
                   </div>

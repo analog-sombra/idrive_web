@@ -19,6 +19,7 @@ import {
   type SortingState,
   type ColumnFiltersState,
 } from "@tanstack/react-table";
+import { encryptURLData } from "@/utils/methods";
 
 const { Search } = Input;
 
@@ -76,9 +77,14 @@ const ServiceBookingListPage = () => {
         accessorKey: "licenseApplications",
         header: "License Status",
         cell: (info) => {
-          const licenseApps = info.getValue() as BookingService["licenseApplications"];
+          const licenseApps =
+            info.getValue() as BookingService["licenseApplications"];
           if (!licenseApps || licenseApps.length === 0) {
-            return <span className="text-xs text-gray-400">No License Application</span>;
+            return (
+              <span className="text-xs text-gray-400">
+                No License Application
+              </span>
+            );
           }
           const statusColors: Record<string, string> = {
             PENDING: "orange",
@@ -95,7 +101,9 @@ const ServiceBookingListPage = () => {
                 {firstApp.status.replace(/_/g, " ")}
               </Tag>
               {licenseApps.length > 1 && (
-                <span className="text-xs text-gray-500">+{licenseApps.length - 1} more</span>
+                <span className="text-xs text-gray-500">
+                  +{licenseApps.length - 1} more
+                </span>
               )}
             </div>
           );
@@ -133,7 +141,8 @@ const ServiceBookingListPage = () => {
         accessorKey: "schoolService",
         header: "Category",
         cell: (info) => {
-          const schoolService = info.getValue() as BookingService["schoolService"];
+          const schoolService =
+            info.getValue() as BookingService["schoolService"];
           return (
             <Tag color="purple">
               {schoolService?.service?.category || "N/A"}
@@ -195,9 +204,10 @@ const ServiceBookingListPage = () => {
           <Button
             type="primary"
             size="small"
-            onClick={() =>
-              router.push(`/mtadmin/servicebookinglist/${info.row.original.id}`)
-            }
+            onClick={() => {
+              const encodedId = encryptURLData(info.row.original.id.toString());
+              router.push(`/mtadmin/servicebookinglist/${encodedId}`);
+            }}
           >
             View
           </Button>

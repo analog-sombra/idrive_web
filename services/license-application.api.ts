@@ -110,7 +110,6 @@ export const createLicenseApplication = async (data: {
   testDate?: string;
   testStatus?: "NONE" | "PASSED" | "FAILED" | "ABSENT";
 }) => {
-  console.log("Creating License Application with data:", data);
   return await ApiCall({
     query: CREATE_LICENSE_APPLICATION,
     variables: {

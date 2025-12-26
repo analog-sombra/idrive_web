@@ -36,11 +36,13 @@ import { PaymentSchema, type PaymentFormData } from "@/schema/payment";
 import { getCookie } from "cookies-next";
 import { toast } from "react-toastify";
 import { convertSlotTo12Hour } from "@/utils/time-format";
+import { decryptURLData } from "@/utils/methods";
 
 const BookingDetailsPage = () => {
   const router = useRouter();
   const params = useParams();
-  const bookingId = parseInt(params.bookingId as string);
+  const encBookingId: string = params.bookingId as string;
+  const bookingId = parseInt(decryptURLData(encBookingId, router));
   const userId = parseInt(getCookie("id")?.toString() || "0");
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -108,7 +110,7 @@ const BookingDetailsPage = () => {
   // Handle form submission
   const onSubmit = (data: PaymentFormData) => {
     const installmentNum = payments.length + 1;
-    
+
     createPaymentMutation.mutate({
       ...data,
       bookingId,
@@ -192,7 +194,9 @@ const BookingDetailsPage = () => {
             {booking.courseName}
           </Descriptions.Item>
           <Descriptions.Item label="Car">{booking.carName}</Descriptions.Item>
-          <Descriptions.Item label="Slot">{convertSlotTo12Hour(booking.slot)}</Descriptions.Item>
+          <Descriptions.Item label="Slot">
+            {convertSlotTo12Hour(booking.slot)}
+          </Descriptions.Item>
           <Descriptions.Item label="Booking Date">
             {new Date(booking.bookingDate).toLocaleDateString("en-IN")}
           </Descriptions.Item>
@@ -223,7 +227,13 @@ const BookingDetailsPage = () => {
               width: 130,
               render: (date) => new Date(date).toLocaleDateString("en-IN"),
             },
-            { title: "Slot", dataIndex: "slot", key: "slot", width: 110, render: (slot: string) => convertSlotTo12Hour(slot) },
+            {
+              title: "Slot",
+              dataIndex: "slot",
+              key: "slot",
+              width: 110,
+              render: (slot: string) => convertSlotTo12Hour(slot),
+            },
             { title: "Car", dataIndex: "carId", key: "carId", width: 100 },
             {
               title: "Driver",
@@ -346,8 +356,7 @@ const BookingDetailsPage = () => {
                   render: (_, record) => (
                     <Tag
                       color={
-                        record.schoolService?.service?.category ==
-                        "NEW_LICENSE"
+                        record.schoolService?.service?.category == "NEW_LICENSE"
                           ? "purple"
                           : record.schoolService?.service?.category ==
                             "I_HOLD_LICENSE"

@@ -293,7 +293,6 @@ export const createCar = async (inputType: {
   assignedDriverId?: number;
   status?: "AVAILABLE" | "IN_USE" | "MAINTENANCE" | "INACTIVE";
 }) => {
-  console.log("Creating car with input:", inputType);
   return ApiCall<CreateCarResponse>({
     query: CREATE_CAR,
     variables: { inputType },

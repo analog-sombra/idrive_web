@@ -1,7 +1,16 @@
 "use client";
 
 import React, { useState, useEffect, use } from "react";
-import { Card, Form, Input, Button, Select, DatePicker, Spin, Checkbox } from "antd";
+import {
+  Card,
+  Form,
+  Input,
+  Button,
+  Select,
+  DatePicker,
+  Spin,
+  Checkbox,
+} from "antd";
 import {
   IcBaselineArrowBack,
   AntDesignCheckOutlined,
@@ -256,6 +265,7 @@ const EditUserPage = ({ params }: { params: Promise<{ userId: string }> }) => {
                       { label: "AB-", value: "AB-" },
                       { label: "O+", value: "O+" },
                       { label: "O-", value: "O-" },
+                      { label: "Unknown", value: "Unknown" },
                     ]}
                   />
                 </Form.Item>
@@ -272,7 +282,9 @@ const EditUserPage = ({ params }: { params: Promise<{ userId: string }> }) => {
                   <div className="mb-2">
                     <Checkbox
                       checked={sameAsCurrentAddress}
-                      onChange={(e) => handleSameAsCurrentAddress(e.target.checked)}
+                      onChange={(e) =>
+                        handleSameAsCurrentAddress(e.target.checked)
+                      }
                     >
                       <span className="text-sm text-gray-700">
                         Same as Current Address

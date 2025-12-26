@@ -1,7 +1,18 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { Card, Table, Input, Button, Tag, Space, Select, Progress, Alert, Switch } from "antd";
+import {
+  Card,
+  Table,
+  Input,
+  Button,
+  Tag,
+  Space,
+  Select,
+  Progress,
+  Alert,
+  Switch,
+} from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { Booking } from "@/services/booking.api";
 import { useRouter } from "next/navigation";
@@ -11,20 +22,25 @@ import { getTotalPaidAmount } from "@/services/payment.api";
 import { getCookie } from "cookies-next";
 import { WarningOutlined } from "@ant-design/icons";
 import { convertSlotTo12Hour } from "@/utils/time-format";
+import { encryptURLData } from "@/utils/methods";
 
 const { Search } = Input;
 
 // Payment Status Cell Component
-const PaymentStatusCell = ({ 
-  bookingId, 
-  totalAmount, 
+const PaymentStatusCell = ({
+  bookingId,
+  totalAmount,
   booking,
-  onUrgencyDetected 
-}: { 
-  bookingId: number; 
-  totalAmount: number; 
+  onUrgencyDetected,
+}: {
+  bookingId: number;
+  totalAmount: number;
   booking: Booking;
-  onUrgencyDetected?: (bookingId: number, isUrgent: boolean, daysUntilEnd: number) => void;
+  onUrgencyDetected?: (
+    bookingId: number,
+    isUrgent: boolean,
+    daysUntilEnd: number
+  ) => void;
 }) => {
   const { data: paidData } = useQuery({
     queryKey: ["payment-total", bookingId],
@@ -34,12 +50,14 @@ const PaymentStatusCell = ({
 
   const totalPaid = paidData?.data?.getTotalPaidAmount || 0;
   const remaining = totalAmount - totalPaid;
-  const percentage = totalAmount > 0 ? Math.round((totalPaid / totalAmount) * 100) : 0;
+  const percentage =
+    totalAmount > 0 ? Math.round((totalPaid / totalAmount) * 100) : 0;
 
   // Check if urgent - bookings that have started and haven't paid full fees
   const { isUrgent, daysUntilEnd } = useMemo(() => {
-    if (!booking.sessions || booking.sessions.length == 0) return { isUrgent: false, daysUntilEnd: 999 };
-    
+    if (!booking.sessions || booking.sessions.length == 0)
+      return { isUrgent: false, daysUntilEnd: 999 };
+
     // Get first and last session dates
     const firstSession = booking.sessions.reduce((earliest, session) => {
       const sessionDate = new Date(session.sessionDate);
@@ -53,19 +71,21 @@ const PaymentStatusCell = ({
 
     const today = new Date();
     today.setHours(0, 0, 0, 0); // Reset to start of day for accurate comparison
-    
+
     // Check if booking has started (first session has passed)
     const hasStarted = firstSession.getTime() < today.getTime();
-    
+
     // Calculate days since completion (negative if last session has passed)
-    const daysSinceCompletion = Math.ceil((lastSession.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    
+    const daysSinceCompletion = Math.ceil(
+      (lastSession.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
     // Check if payment is outstanding
     const hasOutstandingPayment = totalPaid < totalAmount;
-    
+
     // Urgent if: started + outstanding payment
     const urgent = hasStarted && hasOutstandingPayment;
-    
+
     return { isUrgent: urgent, daysUntilEnd: daysSinceCompletion };
   }, [booking.sessions, totalPaid, totalAmount]);
 
@@ -82,18 +102,29 @@ const PaymentStatusCell = ({
         <div className="flex items-center gap-1 mb-1">
           <WarningOutlined className="text-red-500" />
           <span className="text-xs text-red-600 font-semibold">
-            {daysUntilEnd < 0 
-              ? `URGENT - Completed ${Math.abs(daysUntilEnd)} day${Math.abs(daysUntilEnd) !== 1 ? 's' : ''} ago`
-              : `URGENT - Course started, ${daysUntilEnd} day${daysUntilEnd !== 1 ? 's' : ''} left`
-            }
+            {daysUntilEnd < 0
+              ? `URGENT - Completed ${Math.abs(daysUntilEnd)} day${
+                  Math.abs(daysUntilEnd) !== 1 ? "s" : ""
+                } ago`
+              : `URGENT - Course started, ${daysUntilEnd} day${
+                  daysUntilEnd !== 1 ? "s" : ""
+                } left`}
           </span>
         </div>
       )}
       <div className="flex justify-between text-xs">
-        <span className="text-gray-600">Paid: ₹{totalPaid.toLocaleString("en-IN")}</span>
-        <span className="text-red-600 font-semibold">Due: ₹{remaining.toLocaleString("en-IN")}</span>
+        <span className="text-gray-600">
+          Paid: ₹{totalPaid.toLocaleString("en-IN")}
+        </span>
+        <span className="text-red-600 font-semibold">
+          Due: ₹{remaining.toLocaleString("en-IN")}
+        </span>
       </div>
-      <Progress percent={percentage} size="small" status={percentage == 100 ? "success" : "active"} />
+      <Progress
+        percent={percentage}
+        size="small"
+        status={percentage == 100 ? "success" : "active"}
+      />
     </div>
   );
 };
@@ -105,7 +136,9 @@ const BookingListPage = () => {
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [showUrgentOnly, setShowUrgentOnly] = useState(false);
-  const [urgentBookingIds, setUrgentBookingIds] = useState<Set<number>>(new Set());
+  const [urgentBookingIds, setUrgentBookingIds] = useState<Set<number>>(
+    new Set()
+  );
   const pageSize = 10;
 
   // Fetch bookings
@@ -133,26 +166,29 @@ const BookingListPage = () => {
   const allBookings = useMemo(() => {
     return bookingsResponse?.data?.getPaginatedBooking?.data || [];
   }, [bookingsResponse]);
-  
+
   const totalBookings = bookingsResponse?.data?.getPaginatedBooking?.total || 0;
 
   // Callback to track urgent bookings (memoized to prevent re-renders)
-  const handleUrgencyDetected = useCallback((bookingId: number, isUrgent: boolean) => {
-    setUrgentBookingIds(prev => {
-      const newSet = new Set(prev);
-      if (isUrgent) {
-        newSet.add(bookingId);
-      } else {
-        newSet.delete(bookingId);
-      }
-      return newSet;
-    });
-  }, []);
+  const handleUrgencyDetected = useCallback(
+    (bookingId: number, isUrgent: boolean) => {
+      setUrgentBookingIds((prev) => {
+        const newSet = new Set(prev);
+        if (isUrgent) {
+          newSet.add(bookingId);
+        } else {
+          newSet.delete(bookingId);
+        }
+        return newSet;
+      });
+    },
+    []
+  );
 
   // Filter bookings based on urgent flag
   const bookings = useMemo(() => {
     if (!showUrgentOnly) return allBookings;
-    return allBookings.filter(booking => urgentBookingIds.has(booking.id));
+    return allBookings.filter((booking) => urgentBookingIds.has(booking.id));
   }, [allBookings, showUrgentOnly, urgentBookingIds]);
 
   // Calculate the correct total for pagination
@@ -175,7 +211,9 @@ const BookingListPage = () => {
       width: 200,
       render: (_, record) => (
         <div>
-          <div className="font-semibold text-gray-900">{record.customerName}</div>
+          <div className="font-semibold text-gray-900">
+            {record.customerName}
+          </div>
           <div className="text-xs text-gray-500">{record.customerMobile}</div>
         </div>
       ),
@@ -215,7 +253,15 @@ const BookingListPage = () => {
       key: "status",
       width: 120,
       render: (status) => (
-        <Tag color={status == "COMPLETED" ? "green" : status == "CANCELLED" ? "red" : "blue"}>
+        <Tag
+          color={
+            status == "COMPLETED"
+              ? "green"
+              : status == "CANCELLED"
+              ? "red"
+              : "blue"
+          }
+        >
           {status}
         </Tag>
       ),
@@ -232,10 +278,10 @@ const BookingListPage = () => {
       key: "paymentStatus",
       width: 180,
       render: (_, record) => (
-        <PaymentStatusCell 
-          bookingId={record.id} 
-          totalAmount={record.totalAmount} 
-          booking={record} 
+        <PaymentStatusCell
+          bookingId={record.id}
+          totalAmount={record.totalAmount}
+          booking={record}
           onUrgencyDetected={handleUrgencyDetected}
         />
       ),
@@ -248,7 +294,10 @@ const BookingListPage = () => {
       render: (_, record) => (
         <Button
           type="primary"
-          onClick={() => router.push(`/mtadmin/bookinglist/${record.id}`)}
+          onClick={() => {
+            const encodedId = encryptURLData(record.id.toString());
+            router.push(`/mtadmin/bookinglist/${encodedId}`);
+          }}
         >
           View
         </Button>
@@ -262,15 +311,21 @@ const BookingListPage = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Booking List</h1>
-            <p className="text-gray-600 mt-1 text-sm">All bookings for your school</p>
+            <p className="text-gray-600 mt-1 text-sm">
+              All bookings for your school
+            </p>
           </div>
-          <Button type="default" onClick={() => refetch()}>Refresh</Button>
+          <Button type="default" onClick={() => refetch()}>
+            Refresh
+          </Button>
         </div>
       </div>
       <div className="px-8 py-6 space-y-6">
         {urgentBookingIds.size > 0 && (
           <Alert
-            message={`${urgentBookingIds.size} Urgent Payment${urgentBookingIds.size > 1 ? 's' : ''} Required`}
+            message={`${urgentBookingIds.size} Urgent Payment${
+              urgentBookingIds.size > 1 ? "s" : ""
+            } Required`}
             description="Bookings with courses ending within 5 days and outstanding payments are highlighted in red and marked as URGENT."
             type="warning"
             icon={<WarningOutlined />}
@@ -295,8 +350,8 @@ const BookingListPage = () => {
             <Space size="middle">
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-600">Show Urgent Only:</span>
-                <Switch 
-                  checked={showUrgentOnly} 
+                <Switch
+                  checked={showUrgentOnly}
                   onChange={(checked) => {
                     setShowUrgentOnly(checked);
                     setCurrentPage(1);
@@ -334,13 +389,18 @@ const BookingListPage = () => {
               pageSize: pageSize,
               total: displayTotal,
               onChange: (page) => setCurrentPage(page),
-              showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} bookings`,
+              showTotal: (total, range) =>
+                `${range[0]}-${range[1]} of ${total} bookings`,
               showSizeChanger: false,
             }}
             scroll={{ x: 1200 }}
             size="middle"
             rowKey="id"
-            rowClassName={(record) => urgentBookingIds.has(record.id) ? 'bg-red-50 hover:bg-red-100' : ''}
+            rowClassName={(record) =>
+              urgentBookingIds.has(record.id)
+                ? "bg-red-50 hover:bg-red-100"
+                : ""
+            }
           />
         </Card>
       </div>

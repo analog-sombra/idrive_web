@@ -25,6 +25,7 @@ import {
   ShoppingOutlined,
 } from "@ant-design/icons";
 import type { Customer } from "@/schema/booking";
+import { encryptURLData } from "@/utils/methods";
 
 // Types for form data
 type FormService = {
@@ -145,7 +146,10 @@ const ServiceBookingForm = () => {
           setValue("servicePrice", service.licensePrice, {
             shouldValidate: false,
           });
-          const totalAfterDiscount = Math.max(0, service.licensePrice - discount);
+          const totalAfterDiscount = Math.max(
+            0,
+            service.licensePrice - discount
+          );
           setValue("totalAmount", totalAfterDiscount, {
             shouldValidate: false,
           });
@@ -332,7 +336,10 @@ const ServiceBookingForm = () => {
       errors.push("Please select a service to calculate the booking amount");
     }
 
-    if (formValues.advanceAmount && formValues.advanceAmount > formValues.totalAmount) {
+    if (
+      formValues.advanceAmount &&
+      formValues.advanceAmount > formValues.totalAmount
+    ) {
       errors.push("Advance amount cannot be greater than total amount");
     }
 
@@ -398,7 +405,9 @@ const ServiceBookingForm = () => {
         );
       }
 
-      const bookingServiceData = serviceResponse.data as { createBookingService?: { id: number } };
+      const bookingServiceData = serviceResponse.data as {
+        createBookingService?: { id: number };
+      };
       const bookingServiceId = bookingServiceData.createBookingService?.id;
 
       if (!bookingServiceId) {
@@ -406,7 +415,10 @@ const ServiceBookingForm = () => {
       }
 
       // Create license application for NEW_LICENSE service type
-      if (data.selectedService?.serviceType === "NEW_LICENSE" && bookingServiceId) {
+      if (
+        data.selectedService?.serviceType === "NEW_LICENSE" &&
+        bookingServiceId
+      ) {
         try {
           const licenseAppResponse = await createLicenseApplication({
             bookingServiceId: bookingServiceId,
@@ -414,10 +426,15 @@ const ServiceBookingForm = () => {
           });
 
           if (!licenseAppResponse.status) {
-            console.error("Failed to create license application:", licenseAppResponse.message);
+            console.error(
+              "Failed to create license application:",
+              licenseAppResponse.message
+            );
             // Don't throw error here, just log it - booking service was created successfully
           } else {
-            console.log("License application created successfully for NEW_LICENSE service");
+            console.log(
+              "License application created successfully for NEW_LICENSE service"
+            );
           }
         } catch (error) {
           console.error("Error creating license application:", error);
@@ -427,12 +444,15 @@ const ServiceBookingForm = () => {
 
       return { serviceResponse, bookingServiceId };
     },
-    onSuccess: async (data: { serviceResponse: unknown; bookingServiceId: number }) => {
+    onSuccess: async (data: {
+      serviceResponse: unknown;
+      bookingServiceId: number;
+    }) => {
       // If advance amount is provided, create service payment
       if (pendingData?.advanceAmount && pendingData.advanceAmount > 0) {
         try {
           const paymentNumber = `SPAY${data.bookingServiceId}1${Date.now()}`;
-          
+
           await ApiCall({
             query: `mutation CreateServicePayment($inputType: CreateServicePaymentInput!) {
               createServicePayment(inputType: $inputType) {
@@ -456,18 +476,23 @@ const ServiceBookingForm = () => {
               },
             },
           });
-          
-          toast.success("Service booking created and advance payment recorded successfully!");
+
+          toast.success(
+            "Service booking created and advance payment recorded successfully!"
+          );
         } catch (error) {
           console.error("Failed to create service payment:", error);
-          toast.warning("Service booking created, but advance payment recording failed. Please add payment manually.");
+          toast.warning(
+            "Service booking created, but advance payment recording failed. Please add payment manually."
+          );
         }
       } else {
         toast.success("Service booking created successfully!");
       }
-      
+
       setShowConfirmModal(false);
-      router.push("/mtadmin/servicebooking");
+      const encodedId = encryptURLData(data.bookingServiceId.toString());
+      router.push(`/mtadmin/servicebookinglist/${encodedId}`);
     },
     onError: (error: Error) => {
       toast.error(
@@ -482,8 +507,6 @@ const ServiceBookingForm = () => {
       mutate(pendingData);
     }
   };
-
-
 
   const progress = calculateProgress();
 
@@ -736,7 +759,10 @@ const ServiceBookingForm = () => {
                         const value = parseFloat(e.target.value) || 0;
                         setDiscount(value);
                         if (selectedService) {
-                          const totalAfterDiscount = Math.max(0, selectedService.licensePrice - value);
+                          const totalAfterDiscount = Math.max(
+                            0,
+                            selectedService.licensePrice - value
+                          );
                           setValue("totalAmount", totalAfterDiscount);
                           setValue("discount", value);
                         }
@@ -761,10 +787,15 @@ const ServiceBookingForm = () => {
                         Discount Amount: ₹{discount.toLocaleString("en-IN")}
                       </p>
                       <p className="text-xs text-green-700">
-                        Original Price: ₹{selectedService.licensePrice.toLocaleString("en-IN")}
+                        Original Price: ₹
+                        {selectedService.licensePrice.toLocaleString("en-IN")}
                       </p>
                       <p className="text-xs text-green-700">
-                        Final Price: ₹{Math.max(0, selectedService.licensePrice - discount).toLocaleString("en-IN")}
+                        Final Price: ₹
+                        {Math.max(
+                          0,
+                          selectedService.licensePrice - discount
+                        ).toLocaleString("en-IN")}
                       </p>
                     </div>
                   )}
@@ -791,7 +822,8 @@ const ServiceBookingForm = () => {
                     />
                     {selectedService && formValues.totalAmount > 0 ? (
                       <p className="text-xs text-gray-500 mt-1">
-                        Enter advance amount (max: ₹{formValues.totalAmount.toLocaleString("en-IN")})
+                        Enter advance amount (max: ₹
+                        {formValues.totalAmount.toLocaleString("en-IN")})
                       </p>
                     ) : (
                       <p className="text-xs text-gray-500 mt-1">
@@ -806,7 +838,10 @@ const ServiceBookingForm = () => {
                         Advance: ₹{advanceAmount.toLocaleString("en-IN")}
                       </p>
                       <p className="text-xs text-blue-700">
-                        • Remaining: ₹{(formValues.totalAmount - advanceAmount).toLocaleString("en-IN")}
+                        • Remaining: ₹
+                        {(
+                          formValues.totalAmount - advanceAmount
+                        ).toLocaleString("en-IN")}
                       </p>
                     </div>
                   )}
@@ -891,7 +926,7 @@ const ServiceBookingForm = () => {
                       </span>
                     </div>
                     <p className="text-xs text-gray-600">
-                      {discount > 0 
+                      {discount > 0
                         ? `After ₹${discount.toLocaleString("en-IN")} discount`
                         : "Service booking fee"}
                     </p>
@@ -913,7 +948,10 @@ const ServiceBookingForm = () => {
                           Remaining:
                         </span>
                         <span className="font-bold text-orange-600">
-                          ₹{(formValues.totalAmount - advanceAmount).toLocaleString("en-IN")}
+                          ₹
+                          {(
+                            formValues.totalAmount - advanceAmount
+                          ).toLocaleString("en-IN")}
                         </span>
                       </div>
                     </div>
@@ -1067,7 +1105,9 @@ const ServiceBookingForm = () => {
                   </div>
                   <div className="pt-2 border-t border-green-200">
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-gray-900">Final Price:</span>
+                      <span className="font-semibold text-gray-900">
+                        Final Price:
+                      </span>
                       <span className="font-bold text-green-600">
                         ₹{pendingData.totalAmount.toLocaleString("en-IN")}
                       </span>
@@ -1105,7 +1145,10 @@ const ServiceBookingForm = () => {
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-700">Remaining Amount:</span>
                     <span className="text-orange-600 font-semibold">
-                      ₹{(pendingData.totalAmount - pendingData.advanceAmount).toLocaleString("en-IN")}
+                      ₹
+                      {(
+                        pendingData.totalAmount - pendingData.advanceAmount
+                      ).toLocaleString("en-IN")}
                     </span>
                   </div>
                 </div>
